@@ -1,52 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sanket - Signal Mapping</title>
+    <title>Signal Mapping Only</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body { margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; }
-        .legend {
-            position: absolute; bottom: 30px; left: 10px; z-index: 1000;
-            background: white; padding: 10px; border-radius: 5px; font-size: 12px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); line-height: 1.5;
+        #map { height: 100vh; width: 100vw; background: #e8eaed; }
+        #status-box {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 10px; border: 2px solid #002f6c;
+            font-family: monospace; font-size: 11px; max-width: 250px;
         }
     </style>
 </head>
 <body>
 
+<div id="status-box">Checking Master Files...</div>
 <div id="map"></div>
-<div class="legend">
-    <strong>Signal Legend:</strong><br>
-    <span style="color:orange">●</span> Stations (Yard)<br>
-    <span style="color:blue">●</span> DN Signals<br>
-    <span style="color:green">●</span> UP Signals<br>
-    <span style="color:red">●</span> Mid-Section Signals
-</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // Map initialization
     const map = L.map('map').setView([21.14, 79.08], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // LOGIC ALERT: DDMM.MMMM to Decimal conversion is critical.
     function conv(v) {
         if(!v) return 0;
         let s = v.toString().trim();
         let dot = s.indexOf('.');
-        // Agar format decimal hai toh seedhe return kare, agar DDMM hai toh convert kare
         if (dot < 2) return parseFloat(s);
         return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
 
+    function log(msg, color="#000") {
+        const box = document.getElementById('status-box');
+        box.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+    }
+
     const masters = [
-        { file: 'master/station.csv', type: 'STN', color: 'orange' },
-        { file: 'master/dn_signals.csv', type: 'DN', color: 'blue' },
-        { file: 'master/up_signals.csv', type: 'UP', color: 'green' },
-        { file: 'master/dn_mid_signals.csv', type: 'MID-DN', color: 'red' },
-        { file: 'master/up_mid_signals.csv', type: 'MID-UP', color: 'red' }
+        { file: 'master/station.csv', type: 'STN', clr: 'orange' },
+        { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
+        { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
+        { file: 'master/dn_mid_signals.csv', type: 'MID', clr: 'red' },
+        { file: 'master/up_mid_signals.csv', type: 'MID', clr: 'red' }
     ];
 
     masters.forEach(m => {
@@ -55,33 +51,23 @@
             header: true,
             skipEmptyLines: true,
             complete: function(results) {
+                let count = 0;
                 results.data.forEach(row => {
-                    // Coordinates pick karne ke liye headers check karein (Lat/LAT/Latitude)
                     let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
                     let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
                     let name = row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION;
 
                     if(lat && lng) {
-                        if(m.type === 'STN') {
-                            // Station ke liye Rectangle draw karna better hai (Yard Area)
-                            let eLat = conv(row['End_Lat ']);
-                            let eLng = conv(row.End_Lng);
-                            if(eLat && eLng) {
-                                L.rectangle([[lat, lng], [eLat, eLng]], {
-                                    color: m.color, weight: 2, fillOpacity: 0.2
-                                }).addTo(map).bindTooltip(name);
-                            } else {
-                                L.circleMarker([lat, lng], {radius: 6, color: m.color}).addTo(map).bindTooltip(name);
-                            }
-                        } else {
-                            // Signals ke liye Circle Markers
-                            L.circleMarker([lat, lng], {
-                                radius: 4, color: m.color, fillOpacity: 0.8
-                            }).addTo(map).bindTooltip(name + " (" + m.type + ")");
-                        }
+                        count++;
+                        L.circleMarker([lat, lng], {
+                            radius: 4, color: m.clr, fillOpacity: 0.8
+                        }).addTo(map).bindTooltip(name + " (" + m.type + ")");
                     }
                 });
-                console.log(m.file + " loaded successfully.");
+                log(`${m.file}: ${count} points`, "green");
+            },
+            error: function(err) {
+                log(`ERROR: ${m.file} NOT FOUND`, "red");
             }
         });
     });
