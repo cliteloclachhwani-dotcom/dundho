@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sanket 11.0 - Clean Icons</title>
+    <title>Sanket 12.0 - Station & LC Fixed</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
@@ -9,23 +9,22 @@
         #map { height: 100vh; width: 100vw; background: #eaeff2; }
         .legend {
             position: absolute; bottom: 25px; left: 20px; z-index: 1000;
-            background: white; padding: 10px; border-radius: 6px; border: 1.5px solid #002f6c;
-            font-family: 'Segoe UI', sans-serif; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            background: white; padding: 10px; border: 2px solid #002f6c;
+            font-family: sans-serif; font-size: 11px;
         }
-        /* Custom Small Icons */
-        .asset-icon { display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 50%; }
-        .lc-gate { border: 1px solid black; background: #ffff00; color: black; font-size: 9px; }
-        .neu-sec { color: #ff00ff; font-size: 14px; text-shadow: 1px 1px 1px #000; }
+        /* LC Barrier Icon Style */
+        .lc-barrier { border-bottom: 3px solid black; border-left: 5px solid #333; height: 10px; width: 20px; background: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px); }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div class="legend">
-    <b>ASSET SYMBOLS:</b><br>
-    <span style="color:orange">●</span> Station | <span style="color:green">●</span> UP | <span style="color:blue">●</span> DN<br>
-    <span style="color:purple">●</span> UP-M | <span style="color:red">●</span> DN-M<br>
-    <span style="color:black; font-weight:bold;">X</span> LC Gate | <span style="color:#ff00ff;">⚡</span> Neutral Section
+    <b>REQUIRED ASSETS:</b><br>
+    <span style="color:orange">█</span> Station Yard (Start to End)<br>
+    <span style="display:inline-block; width:15px; height:5px; background:repeating-linear-gradient(45deg,#000,#000 2px,#fff 2px,#fff 4px); border:1px solid #000;"></span> LC Gate (Barrier)<br>
+    <span style="color:#ff00ff; font-size:14px;">⚡</span> Neutral Section<br>
+    <span style="color:green">●</span> UP | <span style="color:blue">●</span> DN | <span style="color:purple">●</span> UP-M | <span style="color:red">●</span> DN-M
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -44,7 +43,7 @@
     let processedLC = new Set();
 
     const masters = [
-        { file: 'master/station.csv', type: 'STN', clr: 'orange' },
+        { file: 'master/station.csv', type: 'STN' },
         { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
         { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
         { file: 'master/up_mid_signals.csv', type: 'UP-M', clr: 'purple' },
@@ -61,33 +60,38 @@
                     let name = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
 
                     if(lat && lng) {
-                        // 1. CLEAN LC GATE (Small 'X')
+                        // 1. STATION YARD (Rectangle + Marker)
+                        if(m.type === 'STN') {
+                            let eLat = conv(row['End_Lat ']), eLng = conv(row.End_Lng);
+                            if(eLat && eLng) {
+                                L.rectangle([[lat, lng], [eLat, eLng]], {color: 'orange', weight: 3, fillOpacity: 0.2}).addTo(map);
+                            }
+                            L.circleMarker([lat, lng], {radius: 8, color: 'orange', fillOpacity: 1, weight: 2}).addTo(map).bindTooltip(name + " (STATION)");
+                            return;
+                        }
+
+                        // 2. LC GATE (Barrier Style as requested)
                         if(name.includes("L XING") || name.includes("LC")) {
-                            let lcId = name.replace(/[^0-9]/g, ''); // Sirf number nikalein
+                            let lcId = name.replace(/[^0-9]/g, '');
                             if(!processedLC.has(lcId)) {
                                 processedLC.add(lcId);
                                 L.marker([lat, lng], {
-                                    icon: L.divIcon({ className: 'asset-icon', html: `<b style="font-size:12px">X</b>`, iconSize: [15, 15] })
-                                }).addTo(map).bindTooltip("LC Gate: " + lcId);
+                                    icon: L.divIcon({ className: 'lc-barrier', iconSize: [20, 10] })
+                                }).addTo(map).bindTooltip("LC GATE: " + lcId);
                             }
                             return;
                         }
 
-                        // 2. CLEAN NEUTRAL SECTION (⚡)
+                        // 3. NEUTRAL SECTION (Lightning)
                         if(name.includes("NEU SEC")) {
                             L.marker([lat, lng], {
-                                icon: L.divIcon({ className: 'neu-sec', html: `⚡`, iconSize: [15, 15] })
-                            }).addTo(map).bindTooltip("Neutral Section: " + name);
+                                icon: L.divIcon({ className: '', html: `<b style="color:#ff00ff; font-size:18px;">⚡</b>`, iconSize: [15, 15] })
+                            }).addTo(map).bindTooltip("NEUTRAL SECTION: " + name);
                             return;
                         }
 
-                        // 3. REGULAR ASSETS
-                        L.circleMarker([lat, lng], {
-                            radius: m.type === 'STN' ? 6 : 4,
-                            color: m.clr,
-                            fillOpacity: 0.8,
-                            weight: 1.5
-                        }).addTo(map).bindTooltip(name + " (" + m.type + ")");
+                        // 4. SIGNALS
+                        L.circleMarker([lat, lng], { radius: 4, color: m.clr, fillOpacity: 0.8 }).addTo(map).bindTooltip(name);
                     }
                 });
             }
