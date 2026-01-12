@@ -1,43 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Interactive Audit Map</title>
+    <title>SECR - Interactive Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         #map { height: 100vh; width: 100vw; }
-        .lc-gate { border: 2px solid black; background: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px); height: 10px; width: 25px; }
+        .panel { position: absolute; top: 10px; left: 50px; background: white; padding: 10px; z-index: 1000; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-<script>
-    const map = L.map('map').setView([21.14, 79.08], 9);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    <div class="panel" id="disp">Loading...</div>
+    <div id="map"></div>
 
-    function conv(v) {
-        let s = v.toString();
-        let dot = s.indexOf('.');
-        return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
-    }
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script>
+        const map = L.map('map').setView([21.14, 79.08], 9);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    const rawData = localStorage.getItem('rtisData');
-    if(rawData) {
-        const rtis = Papa.parse(rawData, {header:true}).data;
-        let path = [];
-        rtis.forEach(row => {
-            let lat = conv(row.LATITUDE || row.LAT);
-            let lng = conv(row.LONGITUDE || row.LNG);
-            if(lat && lng) {
-                path.push([lat, lng]);
-                let m = L.circleMarker([lat, lng], {radius:3, color: row.SPEED > 0 ? 'blue' : 'red'}).addTo(map);
-                m.bindTooltip(`Speed: ${row.SPEED} | Dir: ${row.HEADING || row.COURSE}`);
-            }
-        });
-        L.polyline(path, {color: 'black', weight: 2}).addTo(map);
-        map.fitBounds(path);
-    }
-</script>
+        const data = localStorage.getItem('rtis');
+        const meta = JSON.parse(localStorage.getItem('meta'));
+
+        if(meta) document.getElementById('disp').innerHTML = `<b>Train:</b> ${meta.train} | <b>LP:</b> ${meta.lp}`;
+
+        if(data) {
+            const rows = Papa.parse(data, {header:true}).data;
+            let pts = [];
+            rows.forEach(r => {
+                let lat = parseFloat(r.LATITUDE || r.LAT);
+                let lng = parseFloat(r.LONGITUDE || r.LNG);
+                if(lat && lng) {
+                    pts.push([lat, lng]);
+                    let c = L.circleMarker([lat, lng], {radius: 3, color: r.SPEED > 0 ? 'blue' : 'red'}).addTo(map);
+                    c.bindTooltip(`Time: ${r.TIME}<br>Speed: ${r.SPEED} kmph`);
+                }
+            });
+            L.polyline(pts, {color: 'black', weight: 2}).addTo(map);
+            map.fitBounds(pts);
+        }
+    </script>
 </body>
 </html>
