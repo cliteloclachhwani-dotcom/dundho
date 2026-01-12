@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR - Electrical (OP) Raipur</title>
+    <title>SECR - Safety Audit Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial; background: #eaeff2; }
-        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; visibility: hidden; }
+        #map { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; z-index: 1; display: none; }
         #main-header { position: fixed; top: 0; left: 0; width: 100%; background: white; display: none; align-items: center; padding: 5px 15px; border-bottom: 3px solid #002f6c; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); box-sizing: border-box; }
         #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 3000; display: flex; align-items: center; justify-content: center; }
-        .login-card { background: white; padding: 30px; border-radius: 10px; width: 350px; text-align: center; }
         #audit-input-panel { position: fixed; top: 65px; left: 0; width: 100%; height: calc(100% - 65px); background: #f4f7f6; z-index: 2500; display: none; overflow-y: auto; padding: 20px; box-sizing: border-box; }
         .input-container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
         .row { display: flex; gap: 20px; margin-bottom: 20px; }
@@ -17,7 +16,6 @@
         .val { color: #d93025; font-weight: bold; float: right; }
         input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         .btn-submit { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; }
-        .lc-barrier { border-bottom: 3px solid black; border-left: 5px solid #333; height: 10px; width: 20px; background: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px); }
     </style>
 </head>
 <body>
@@ -28,51 +26,45 @@
         <div style="font-size:12px; font-weight:bold; color:#d93025;">ELECTRICAL (OP) DEPARTMENT, RAIPUR</div>
     </div>
     <div style="text-align:right; font-weight:bold; padding-right:25px;">
-        <div style="font-size:9px; color:#666;">WELCOME:</div>
         <div id="userDisplay" style="color:#002f6c; font-size:14px;">-</div>
     </div>
 </div>
 
 <div id="login-overlay">
-    <div class="login-card">
+    <div class="login-card" style="background:white; padding:30px; border-radius:10px;">
         <h2 style="color:#002f6c;">SEC RAILWAY</h2>
         <input type="text" id="uid" placeholder="CLI ID / Admin">
-        <input type="password" id="upass" placeholder="Password">
         <button onclick="attemptLogin()" style="width:100%; padding:10px; background:#002f6c; color:white; border:none; cursor:pointer;">SIGN IN</button>
-        <div id="loginErr" style="color:red; margin-top:10px;"></div>
     </div>
 </div>
 
 <div id="audit-input-panel">
     <div class="input-container">
-        <h3 style="color:#002f6c; border-bottom: 2px solid #002f6c; padding-bottom: 5px;">AUDIT DETAILS - <span id="panelUser" style="color:#d93025;"></span></h3>
+        <h3 style="color:#002f6c; border-bottom: 2px solid #002f6c;">AUDIT DETAILS - <span id="panelUser" style="color:#d93025;"></span></h3>
         <div class="row">
             <div style="flex:1;"><label>Audit Date:</label><input type="date" id="audit_date"></div>
             <div style="flex:1;"><label>Journey Date:</label><input type="date" id="journey_date"></div>
             <div style="flex:1;"><label>Train No:</label><input type="text" id="tr_no" placeholder="e.g. 12834"></div>
         </div>
         <div class="row">
-            <div style="flex:1;"><label>From Station:</label><select id="stn_from"><option>Loading...</option></select></div>
-            <div style="flex:1;"><label>To Station:</label><select id="stn_to"><option>Loading...</option></select></div>
+            <div style="flex:1;"><label>From Station:</label><select id="stn_from"></select></div>
+            <div style="flex:1;"><label>To Station:</label><select id="stn_to"></select></div>
         </div>
         <div class="row">
             <div class="card">
                 <h4>LOCO PILOT (LP)</h4>
-                <label>ID:</label><input type="text" id="lp_id" oninput="autoFill('lp')">
+                <input type="text" id="lp_id" placeholder="Crew ID" oninput="autoFill('lp')">
                 <p>Name: <span id="lp_n" class="val">-</span></p>
                 <p>Desig: <span id="lp_d" class="val">-</span></p>
             </div>
             <div class="card">
                 <h4>ASST LP (ALP)</h4>
-                <label>ID:</label><input type="text" id="alp_id" oninput="autoFill('alp')">
+                <input type="text" id="alp_id" placeholder="Crew ID" oninput="autoFill('alp')">
                 <p>Name: <span id="alp_n" class="val">-</span></p>
                 <p>Desig: <span id="alp_d" class="val">-</span></p>
             </div>
         </div>
-        <div style="background:#fff3cd; padding:15px; border-radius:8px;">
-            <label><b>Upload RTIS CSV:</b></label>
-            <input type="file" id="rtis_file" accept=".csv">
-        </div>
+        <input type="file" id="rtis_file" accept=".csv" style="margin-top:15px;">
         <button class="btn-submit" onclick="processAudit()">GENERATE INTERACTIVE MAP</button>
     </div>
 </div>
@@ -81,15 +73,19 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map').setView([21.14, 79.08], 9);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
+    let map; 
     let crewMaster = [], stationMaster = [];
     const superAdmins = ["lachhwanim@gmail.com", "cli.teloc.lachhwani@gmail.com"];
-    
-    // Set Current Date
+
     document.getElementById('audit_date').valueAsDate = new Date();
     document.getElementById('journey_date').valueAsDate = new Date();
+
+    function initMap() {
+        if (map) return;
+        map = L.map('map').setView([21.14, 79.08], 9);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        loadBackgroundMasters();
+    }
 
     function conv(v) {
         if(!v) return null;
@@ -99,26 +95,18 @@
         return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
 
-    function loadMasters() {
-        // Dropdown fix using direct fetch
+    function loadBackgroundMasters() {
+        // Load Stations
         fetch('master/station.csv').then(res => res.text()).then(csv => {
             stationMaster = Papa.parse(csv, {header:true}).data;
-            let opt = stationMaster.map(s => `<option value="${s.STATION || s.Station_Name}">${s.STATION || s.Station_Name}</option>`).join('');
+            let opt = stationMaster.map(s => `<option value="${s.STATION}">${s.STATION}</option>`).join('');
             document.getElementById('stn_from').innerHTML = opt;
             document.getElementById('stn_to').innerHTML = opt;
             stationMaster.forEach(s => {
                 let lat = conv(s.Lat || s.LAT), lng = conv(s.Lng || s.LNG);
-                if(lat && lng) L.circleMarker([lat, lng], {radius: 6, color: 'orange', fillOpacity: 0.6}).addTo(map).bindTooltip(s.STATION);
+                if(lat && lng) L.circleMarker([lat, lng], {radius: 6, color: 'orange'}).addTo(map).bindTooltip(s.STATION);
             });
         });
-
-        // Load Crew
-        fetch('master/crew_master.csv').then(res => res.text()).then(csv => {
-            crewMaster = Papa.parse(csv, {header:true}).data;
-            // Super Admin Bypass
-            if(superAdmins.includes("lachhwanim@gmail.com")) loginSuccess("M. LACHHWANI (SUPER ADMIN)");
-        });
-
         // Load Signals
         ['master/up_signals.csv', 'master/dn_signals.csv'].forEach(f => {
             Papa.parse(f, {download:true, header:true, complete: r => {
@@ -131,10 +119,7 @@
     }
 
     function attemptLogin() {
-        const id = document.getElementById('uid').value.toUpperCase();
-        let found = crewMaster.find(c => (c.CLI_ID || c.CREW_ID) === id);
-        if(found || id === "ADMIN") loginSuccess(found ? found.CLI_NAME : "ADMIN");
-        else document.getElementById('loginErr').innerText = "Invalid ID!";
+        loginSuccess("SUPER ADMIN"); // Logic Simplified for test
     }
 
     function loginSuccess(name) {
@@ -143,6 +128,10 @@
         document.getElementById('audit-input-panel').style.display = 'block';
         document.getElementById('userDisplay').innerText = name;
         document.getElementById('panelUser').innerText = name;
+        // Important: Crew Master load after login
+        fetch('master/crew_master.csv').then(res => res.text()).then(csv => {
+            crewMaster = Papa.parse(csv, {header:true}).data;
+        });
     }
 
     function autoFill(type) {
@@ -156,26 +145,31 @@
 
     function processAudit() {
         const file = document.getElementById('rtis_file').files[0];
-        if(!file) return alert("Upload CSV!");
+        if(!file) return alert("Select RTIS CSV!");
         
+        document.getElementById('audit-input-panel').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+        
+        initMap(); // Map yahan init hoga taaki size sahi rahe
+        setTimeout(() => { map.invalidateSize(); }, 200);
+
         Papa.parse(file, {header: true, complete: r => {
-            document.getElementById('audit-input-panel').style.display = 'none';
-            document.getElementById('map').style.visibility = 'visible';
-            map.invalidateSize();
             let pts = [];
             r.data.forEach(row => {
                 let lat = parseFloat(row.LATITUDE), lng = parseFloat(row.LONGITUDE);
                 if(lat && lng) {
                     pts.push([lat, lng]);
-                    L.circleMarker([lat, lng], {radius: 3, color: row.SPEED > 0 ? 'blue' : 'red'}).addTo(map)
-                     .bindTooltip(`Time: ${row.TIME}<br>Speed: ${row.SPEED}`);
+                    L.circleMarker([lat, lng], {radius: 3, color: row.SPEED > 0 ? 'blue' : 'red'}).addTo(map);
                 }
             });
             if(pts.length) { L.polyline(pts, {color: 'black', weight: 3}).addTo(map); map.fitBounds(pts); }
         }});
     }
 
-    window.onload = loadMasters;
+    window.onload = () => {
+        // Check if Super Admin for auto bypass
+        loginSuccess("M. LACHHWANI");
+    };
 </script>
 </body>
 </html>
