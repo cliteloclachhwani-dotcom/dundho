@@ -1,101 +1,116 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR Final Audit</title>
+    <title>SECR Safety Audit - Final</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; font-family: Arial; background: #eef2f3; }
-        .header { background: #002f6c; color: white; padding: 15px; text-align: center; font-weight: bold; }
-        #panel { max-width: 700px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
-        #map { height: 600px; width: 95%; margin: 10px auto; border: 4px solid #002f6c; display: none; }
+        body { margin: 0; font-family: 'Segoe UI', Arial; background: #f0f2f5; }
+        .top-bar { background: #002f6c; color: white; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; border-bottom: 4px solid #d93025; }
+        #input-box { max-width: 600px; margin: 30px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        #map { height: 600px; width: 98%; margin: 10px auto; border: 3px solid #002f6c; display: none; border-radius: 8px; }
         .field { margin-bottom: 15px; }
-        select, input { width: 100%; padding: 12px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; }
-        .btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 8px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        select, input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        .btn-go { width: 100%; padding: 18px; background: #28a745; color: white; border: none; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 8px; transition: 0.3s; }
+        .btn-go:hover { background: #218838; }
     </style>
 </head>
 <body>
 
-<div class="header">SECR SAFETY AUDIT - M. LACHHWANI</div>
+<div class="top-bar">SOUTH EAST CENTRAL RAILWAY - M. LACHHWANI</div>
 
-<div id="panel">
+<div id="input-box">
     <div class="field">
         <label>From Station:</label>
-        <select id="s_from"><option>Loading...</option></select>
+        <select id="stn_from"><option>Loading Stations...</option></select>
     </div>
     <div class="field">
         <label>To Station:</label>
-        <select id="s_to"><option>Loading...</option></select>
+        <select id="stn_to"><option>Loading Stations...</option></select>
     </div>
     <div class="field">
-        <label>Upload RTIS CSV:</label>
-        <input type="file" id="csv" accept=".csv">
+        <label>Upload RTIS CSV File:</label>
+        <input type="file" id="rtis_csv" accept=".csv">
     </div>
-    <button class="btn" onclick="start()">SHOW PATH & STATIONS</button>
+    <button class="btn-go" onclick="generateAuditMap()">GENERATE AUDIT MAP</button>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let stnData = [];
+    let stationMaster = [];
 
-    // 1. Load Stations by INDEX (0: Name, 1: Lat, 2: Lng)
+    // 1. Load Stations with correct Header Matching
     window.onload = function() {
-        Papa.parse("master/station.csv?v=" + Date.now(), {
-            download: true, header: false, skipEmptyLines: true,
-            complete: function(r) {
-                stnData = r.data.slice(1); // Pehli line header hai to hata do
-                let options = stnData.map(s => `<option value="${s[0]}">${s[0]}</option>`).join('');
-                document.getElementById('s_from').innerHTML = options;
-                document.getElementById('s_to').innerHTML = options;
+        Papa.parse("master/station.csv?t=" + Date.now(), {
+            download: true, 
+            header: true, 
+            skipEmptyLines: true,
+            complete: function(results) {
+                stationMaster = results.data;
+                // Matching "Station_Name" from your CSV preview
+                let list = stationMaster.map(s => {
+                    let name = s.Station_Name || s.STATION || s.STN || "Unknown";
+                    return `<option value="${name}">${name}</option>`;
+                }).join('');
+                document.getElementById('stn_from').innerHTML = list;
+                document.getElementById('stn_to').innerHTML = list;
             }
         });
     };
 
-    function start() {
-        const file = document.getElementById('csv').files[0];
-        if(!file) return alert("File choose karein!");
+    function generateAuditMap() {
+        const file = document.getElementById('rtis_csv').files[0];
+        if(!file) return alert("Please select RTIS CSV file first!");
 
-        document.getElementById('panel').style.display = 'none';
+        document.getElementById('input-box').style.display = 'none';
         document.getElementById('map').style.display = 'block';
 
-        const map = L.map('map').setView([21.14, 79.08], 8);
+        const map = L.map('map').setView([21.14, 79.08], 7);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         Papa.parse(file, {
-            header: false, skipEmptyLines: true,
+            header: true, 
+            skipEmptyLines: true,
             complete: function(res) {
-                let pts = [];
-                let rawData = res.data.slice(1);
-
-                rawData.forEach(row => {
-                    // RTIS Index: 2: Lat, 3: Lng, 4: Speed
-                    let lat = parseFloat(row[2]);
-                    let lng = parseFloat(row[3]);
-                    let spd = parseFloat(row[4] || 0);
+                let pathPoints = [];
+                res.data.forEach(row => {
+                    // Supporting multiple RTIS formats for Lat/Lng
+                    let lat = parseFloat(row.LATITUDE || row.LAT || row.Lat);
+                    let lng = parseFloat(row.LONGITUDE || row.LNG || row.Lng);
+                    let speed = parseFloat(row.SPEED || row.Speed || 0);
 
                     if(!isNaN(lat) && !isNaN(lng)) {
-                        pts.push([lat, lng]);
-                        L.circleMarker([lat, lng], {radius: 2, color: spd > 0 ? 'blue' : 'red'}).addTo(map);
+                        pathPoints.push([lat, lng]);
+                        // Small markers for data points
+                        L.circleMarker([lat, lng], {
+                            radius: 2, 
+                            color: speed > 0 ? 'blue' : 'red',
+                            fillOpacity: 0.7
+                        }).addTo(map);
                     }
                 });
 
-                if(pts.length > 0) {
-                    // Moti black line
-                    L.polyline(pts, {color: 'black', weight: 8, opacity: 1}).addTo(map);
-                    map.fitBounds(pts);
+                if(pathPoints.length > 0) {
+                    // Thick Solid Black Line
+                    L.polyline(pathPoints, {color: 'black', weight: 6, opacity: 1}).addTo(map);
+                    map.fitBounds(pathPoints, {padding: [30, 30]});
                 }
 
-                // Plot Stations from Master (Index 1: Lat, 2: Lng)
-                stnData.forEach(s => {
-                    let lat = parseFloat(s[1]), lng = parseFloat(s[2]);
-                    if(!isNaN(lat)) {
-                        L.circleMarker([lat, lng], {radius: 7, color: 'orange', fillOpacity: 1}).addTo(map).bindTooltip(s[0]);
+                // Plot Stations as Orange Markers with Tooltips
+                stationMaster.forEach(s => {
+                    let slat = parseFloat(s.Start_Lat || s.LAT);
+                    let slng = parseFloat(s.Start_Lng || s.LNG);
+                    if(!isNaN(slat)) {
+                        L.circleMarker([slat, slng], {radius: 6, color: 'orange', fillOpacity: 1}).addTo(map)
+                         .bindTooltip(s.Station_Name || "Station");
                     }
                 });
-                
-                setTimeout(() => map.invalidateSize(), 300);
+
+                // Fix for the 'Grey Map' or 'Flat Map' issue
+                setTimeout(() => map.invalidateSize(), 400);
             }
         });
     }
