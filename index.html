@@ -1,119 +1,102 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR Safety Audit - Final</title>
+    <title>Sanket 12.0 - Station & LC Fixed</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', Arial; background: #f0f2f5; }
-        .top-bar { background: #002f6c; color: white; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; border-bottom: 4px solid #d93025; }
-        #input-box { max-width: 600px; margin: 30px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        #map { height: 600px; width: 98%; margin: 10px auto; border: 3px solid #002f6c; display: none; border-radius: 8px; }
-        .field { margin-bottom: 15px; }
-        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
-        select, input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-        .btn-go { width: 100%; padding: 18px; background: #28a745; color: white; border: none; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 8px; transition: 0.3s; }
-        .btn-go:hover { background: #218838; }
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; background: #eaeff2; }
+        .legend {
+            position: absolute; bottom: 25px; left: 20px; z-index: 1000;
+            background: white; padding: 10px; border: 2px solid #002f6c;
+            font-family: sans-serif; font-size: 11px;
+        }
+        /* LC Barrier Icon Style */
+        .lc-barrier { border-bottom: 3px solid black; border-left: 5px solid #333; height: 10px; width: 20px; background: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px); }
     </style>
 </head>
 <body>
 
-<div class="top-bar">SOUTH EAST CENTRAL RAILWAY - M. LACHHWANI</div>
-
-<div id="input-box">
-    <div class="field">
-        <label>From Station:</label>
-        <select id="stn_from"><option>Loading Stations...</option></select>
-    </div>
-    <div class="field">
-        <label>To Station:</label>
-        <select id="stn_to"><option>Loading Stations...</option></select>
-    </div>
-    <div class="field">
-        <label>Upload RTIS CSV File:</label>
-        <input type="file" id="rtis_csv" accept=".csv">
-    </div>
-    <button class="btn-go" onclick="generateAuditMap()">GENERATE AUDIT MAP</button>
-</div>
-
 <div id="map"></div>
+<div class="legend">
+    <b>REQUIRED ASSETS:</b><br>
+    <span style="color:orange">█</span> Station Yard (Start to End)<br>
+    <span style="display:inline-block; width:15px; height:5px; background:repeating-linear-gradient(45deg,#000,#000 2px,#fff 2px,#fff 4px); border:1px solid #000;"></span> LC Gate (Barrier)<br>
+    <span style="color:#ff00ff; font-size:14px;">⚡</span> Neutral Section<br>
+    <span style="color:green">●</span> UP | <span style="color:blue">●</span> DN | <span style="color:purple">●</span> UP-M | <span style="color:red">●</span> DN-M
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let stationMaster = [];
+    const map = L.map('map').setView([21.14, 79.08], 9);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 1. Load Stations with correct Header Matching
-    window.onload = function() {
-        Papa.parse("master/station.csv?t=" + Date.now(), {
-            download: true, 
-            header: true, 
-            skipEmptyLines: true,
-            complete: function(results) {
-                stationMaster = results.data;
-                // Matching "Station_Name" from your CSV preview
-                let list = stationMaster.map(s => {
-                    let name = s.Station_Name || s.STATION || s.STN || "Unknown";
-                    return `<option value="${name}">${name}</option>`;
-                }).join('');
-                document.getElementById('stn_from').innerHTML = list;
-                document.getElementById('stn_to').innerHTML = list;
-            }
-        });
-    };
-
-    function generateAuditMap() {
-        const file = document.getElementById('rtis_csv').files[0];
-        if(!file) return alert("Please select RTIS CSV file first!");
-
-        document.getElementById('input-box').style.display = 'none';
-        document.getElementById('map').style.display = 'block';
-
-        const map = L.map('map').setView([21.14, 79.08], 7);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        Papa.parse(file, {
-            header: true, 
-            skipEmptyLines: true,
-            complete: function(res) {
-                let pathPoints = [];
-                res.data.forEach(row => {
-                    // Supporting multiple RTIS formats for Lat/Lng
-                    let lat = parseFloat(row.LATITUDE || row.LAT || row.Lat);
-                    let lng = parseFloat(row.LONGITUDE || row.LNG || row.Lng);
-                    let speed = parseFloat(row.SPEED || row.Speed || 0);
-
-                    if(!isNaN(lat) && !isNaN(lng)) {
-                        pathPoints.push([lat, lng]);
-                        // Small markers for data points
-                        L.circleMarker([lat, lng], {
-                            radius: 2, 
-                            color: speed > 0 ? 'blue' : 'red',
-                            fillOpacity: 0.7
-                        }).addTo(map);
-                    }
-                });
-
-                if(pathPoints.length > 0) {
-                    // Thick Solid Black Line
-                    L.polyline(pathPoints, {color: 'black', weight: 6, opacity: 1}).addTo(map);
-                    map.fitBounds(pathPoints, {padding: [30, 30]});
-                }
-
-                // Plot Stations as Orange Markers with Tooltips
-                stationMaster.forEach(s => {
-                    let slat = parseFloat(s.Start_Lat || s.LAT);
-                    let slng = parseFloat(s.Start_Lng || s.LNG);
-                    if(!isNaN(slat)) {
-                        L.circleMarker([slat, slng], {radius: 6, color: 'orange', fillOpacity: 1}).addTo(map)
-                         .bindTooltip(s.Station_Name || "Station");
-                    }
-                });
-
-                // Fix for the 'Grey Map' or 'Flat Map' issue
-                setTimeout(() => map.invalidateSize(), 400);
-            }
-        });
+    function conv(v) {
+        if(!v) return null;
+        let s = v.toString().trim();
+        let dot = s.indexOf('.');
+        if (dot < 2) return parseFloat(s);
+        return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
+
+    let processedLC = new Set();
+
+    const masters = [
+        { file: 'master/station.csv', type: 'STN' },
+        { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
+        { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
+        { file: 'master/up_mid_signals.csv', type: 'UP-M', clr: 'purple' },
+        { file: 'master/dn_mid_signals.csv', type: 'DN-M', clr: 'red' }
+    ];
+
+    masters.forEach(m => {
+        Papa.parse(m.file, {
+            download: true, header: true, skipEmptyLines: true,
+            complete: function(r) {
+                r.data.forEach(row => {
+                    let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
+                    let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
+                    let name = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
+
+                    if(lat && lng) {
+                        // 1. STATION YARD (Rectangle + Marker)
+                        if(m.type === 'STN') {
+                            let eLat = conv(row['End_Lat ']), eLng = conv(row.End_Lng);
+                            if(eLat && eLng) {
+                                L.rectangle([[lat, lng], [eLat, eLng]], {color: 'orange', weight: 3, fillOpacity: 0.2}).addTo(map);
+                            }
+                            L.circleMarker([lat, lng], {radius: 8, color: 'orange', fillOpacity: 1, weight: 2}).addTo(map).bindTooltip(name + " (STATION)");
+                            return;
+                        }
+
+                        // 2. LC GATE (Barrier Style as requested)
+                        if(name.includes("L XING") || name.includes("LC")) {
+                            let lcId = name.replace(/[^0-9]/g, '');
+                            if(!processedLC.has(lcId)) {
+                                processedLC.add(lcId);
+                                L.marker([lat, lng], {
+                                    icon: L.divIcon({ className: 'lc-barrier', iconSize: [20, 10] })
+                                }).addTo(map).bindTooltip("LC GATE: " + lcId);
+                            }
+                            return;
+                        }
+
+                        // 3. NEUTRAL SECTION (Lightning)
+                        if(name.includes("NEU SEC")) {
+                            L.marker([lat, lng], {
+                                icon: L.divIcon({ className: '', html: `<b style="color:#ff00ff; font-size:18px;">⚡</b>`, iconSize: [15, 15] })
+                            }).addTo(map).bindTooltip("NEUTRAL SECTION: " + name);
+                            return;
+                        }
+
+                        // 4. SIGNALS
+                        L.circleMarker([lat, lng], { radius: 4, color: m.clr, fillOpacity: 0.8 }).addTo(map).bindTooltip(name);
+                    }
+                });
+            }
+        });
+    });
 </script>
 </body>
 </html>
