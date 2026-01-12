@@ -1,133 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sanket - Mukesh Favorite</title>
-    <meta charset="utf-8" />
+    <title>Sanket - Signal Mapping</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-polyline-decorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
     <style>
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #1a1c23; }
+        body { margin: 0; padding: 0; }
         #map { height: 100vh; width: 100vw; }
-        .panel { position: absolute; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; }
-        .top-left { top: 20px; left: 60px; display: flex; flex-direction: column; gap: 10px; width: 250px; }
-        .info-panel { top: 20px; right: 20px; width: 220px; text-align: center; border-top: 5px solid #d93025; }
-        .upload-area { bottom: 30px; left: 30px; border: 2px dashed #1a73e8; background: #fff; }
-        #speed-display { font-size: 42px; color: #d93025; font-weight: 800; line-height: 1; }
-        .label-sm { font-size: 10px; font-weight: bold; color: #5f6368; text-transform: uppercase; }
-        select, input { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd; }
+        .legend {
+            position: absolute; bottom: 30px; left: 10px; z-index: 1000;
+            background: white; padding: 10px; border-radius: 5px; font-size: 12px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2); line-height: 1.5;
+        }
     </style>
 </head>
 <body>
 
-<div class="panel top-left">
-    <div class="label-sm">Crew Details</div>
-    <select id="crewList1"><option>Loading Masters...</option></select>
-    <select id="crewList2"><option>Select Designation</option></select>
-</div>
-
-<div class="panel info-panel">
-    <div class="label-sm">Instant Speed</div>
-    <div id="speed-display">0.0</div>
-    <div style="font-size:14px; font-weight:bold; color:#5f6368;">km/h</div>
-    <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-    <div class="label-sm">Time & Location</div>
-    <div id="time-display" style="font-weight:bold; color:#1a73e8; margin-bottom:5px;">--:--:--</div>
-    <div id="loc-display" style="font-size:13px; font-weight:bold;">Waiting for Data...</div>
-</div>
-
-<div class="panel upload-area">
-    <div class="label-sm" style="margin-bottom:8px;">Loco GPS Data (RTIS CSV)</div>
-    <input type="file" id="csvFile" accept=".csv">
-</div>
-
 <div id="map"></div>
+<div class="legend">
+    <strong>Signal Legend:</strong><br>
+    <span style="color:orange">●</span> Stations (Yard)<br>
+    <span style="color:blue">●</span> DN Signals<br>
+    <span style="color:green">●</span> UP Signals<br>
+    <span style="color:red">●</span> Mid-Section Signals
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map', {zoomControl: false}).setView([21.14, 79.08], 9);
+    // Map initialization
+    const map = L.map('map').setView([21.14, 79.08], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    L.control.zoom({position: 'bottomright'}).addTo(map);
 
+    // LOGIC ALERT: DDMM.MMMM to Decimal conversion is critical.
     function conv(v) {
         if(!v) return 0;
         let s = v.toString().trim();
         let dot = s.indexOf('.');
+        // Agar format decimal hai toh seedhe return kare, agar DDMM hai toh convert kare
         if (dot < 2) return parseFloat(s);
         return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
 
-    // Step 1: Load Masters [cite: 2026-01-08]
-    function loadMaster(file, type) {
-        Papa.parse("master/" + file, {
-            download: true, header: true, skipEmptyLines: true,
-            complete: r => {
-                r.data.forEach(row => {
-                    if(type === 'STN') {
-                        L.rectangle([[conv(row['Start_Lat ']), conv(row.Start_Lng)], [conv(row['End_Lat ']), conv(row.End_Lng)]], 
-                        {color: "orange", weight: 2, fillOpacity: 0.1}).addTo(map).bindTooltip(row.Station_Name);
-                    } else if(row.SIGNAL_NAME || row.Signal_Name) {
-                        let clr = file.includes('dn') ? 'blue' : 'green';
-                        L.circleMarker([conv(row.Lat || row.LAT), conv(row.Lng || row.LNG)], {radius: 4, color: clr, fillOpacity: 0.8})
-                        .addTo(map).bindTooltip((row.SIGNAL_NAME || row.Signal_Name) + " [" + type + "]");
+    const masters = [
+        { file: 'master/station.csv', type: 'STN', color: 'orange' },
+        { file: 'master/dn_signals.csv', type: 'DN', color: 'blue' },
+        { file: 'master/up_signals.csv', type: 'UP', color: 'green' },
+        { file: 'master/dn_mid_signals.csv', type: 'MID-DN', color: 'red' },
+        { file: 'master/up_mid_signals.csv', type: 'MID-UP', color: 'red' }
+    ];
+
+    masters.forEach(m => {
+        Papa.parse(m.file, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                results.data.forEach(row => {
+                    // Coordinates pick karne ke liye headers check karein (Lat/LAT/Latitude)
+                    let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
+                    let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
+                    let name = row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION;
+
+                    if(lat && lng) {
+                        if(m.type === 'STN') {
+                            // Station ke liye Rectangle draw karna better hai (Yard Area)
+                            let eLat = conv(row['End_Lat ']);
+                            let eLng = conv(row.End_Lng);
+                            if(eLat && eLng) {
+                                L.rectangle([[lat, lng], [eLat, eLng]], {
+                                    color: m.color, weight: 2, fillOpacity: 0.2
+                                }).addTo(map).bindTooltip(name);
+                            } else {
+                                L.circleMarker([lat, lng], {radius: 6, color: m.color}).addTo(map).bindTooltip(name);
+                            }
+                        } else {
+                            // Signals ke liye Circle Markers
+                            L.circleMarker([lat, lng], {
+                                radius: 4, color: m.color, fillOpacity: 0.8
+                            }).addTo(map).bindTooltip(name + " (" + m.type + ")");
+                        }
                     }
                 });
+                console.log(m.file + " loaded successfully.");
             }
         });
-    }
-
-    loadMaster('station.csv', 'STN');
-    loadMaster('dn_signals.csv', 'DN');
-    loadMaster('up_signals.csv', 'UP');
-    loadMaster('dn_mid_signals.csv', 'MID');
-    loadMaster('up_mid_signals.csv', 'MID');
-
-    // Crew List Loading [cite: 2026-01-08]
-    Papa.parse("master/crew_master.csv", {
-        download: true, header: true, complete: r => {
-            const sel = document.getElementById('crewList1');
-            sel.innerHTML = '<option>Select Crew (LP/ALP/CLI)</option>';
-            r.data.forEach(c => {
-                let name = (c.CREW_NAME || c.CLI_NAME);
-                if(name) sel.add(new Option(name + " (" + (c.DESIGNATION || 'Crew') + ")", c.CREW_ID || c.CLI_ID));
-            });
-        }
-    });
-
-    let gpsData = [];
-    let layers = { path: null, arrows: null, cursor: L.circleMarker([0,0], {radius: 8, color: '#fff', fillColor: 'red', fillOpacity: 1, weight: 3}).addTo(map) };
-
-    document.getElementById('csvFile').onchange = e => {
-        Papa.parse(e.target.files[0], {header: true, dynamicTyping: true, complete: r => {
-            gpsData = r.data.filter(x => x.Latitude).map(x => ({
-                time: x['Logging Time'] || x['TIME'], 
-                lat: x.Latitude, lng: x.Longitude, 
-                spd: x.Speed, stn: x['last/cur stationCode']
-            }));
-
-            if(layers.path) map.removeLayer(layers.path);
-            if(layers.arrows) map.removeLayer(layers.arrows);
-
-            const pts = gpsData.map(p => [p.lat, p.lng]);
-            layers.path = L.polyline(pts, {color: '#1a73e8', weight: 6, opacity: 0.8}).addTo(map);
-            
-            layers.arrows = L.polylineDecorator(layers.path, {
-                patterns: [{offset: '5%', repeat: '10%', symbol: L.Symbol.arrowHead({pixelSize: 12, pathOptions: {color: '#d93025', fillOpacity: 1}})}]
-            }).addTo(map);
-
-            map.fitBounds(layers.path.getBounds());
-        }});
-    };
-
-    map.on('mousemove', e => {
-        if (!gpsData.length) return;
-        let near = gpsData.reduce((prev, curr) => 
-            map.distance(e.latlng, [curr.lat, curr.lng]) < map.distance(e.latlng, [prev.lat, prev.lng]) ? curr : prev);
-        
-        layers.cursor.setLatLng([near.lat, near.lng]);
-        document.getElementById('speed-display').innerText = near.spd.toFixed(1);
-        document.getElementById('time-display').innerText = near.time;
-        document.getElementById('loc-display').innerText = near.stn || "In Section";
     });
 </script>
 </body>
