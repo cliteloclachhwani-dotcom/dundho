@@ -1,59 +1,53 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>SECR Safety Audit - Final Master</title>
+    <title>SECR Safety Audit - Final Strike</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eaeff2; }
-        #audit-input-panel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f4f7f6; z-index: 9999; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial; background: #eaeff2; }
+        #audit-panel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f4f7f6; z-index: 9999; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; display: none; }
-        .input-container { max-width: 900px; margin: 30px auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border-top: 10px solid #002f6c; }
-        .row { display: flex; gap: 20px; margin-bottom: 20px; }
-        .card { flex: 1; padding: 20px; border: 1px solid #ddd; border-radius: 12px; background: #f9f9f9; box-shadow: inset 0 0 10px rgba(0,0,0,0.02); }
-        input, select { width: 100%; padding: 12px; margin-top: 8px; border: 2px solid #ced4da; border-radius: 8px; font-size: 15px; outline: none; }
-        input:focus, select:focus { border-color: #002f6c; }
-        .btn-submit { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 22px; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 4px 15px rgba(40,167,69,0.3); }
-        .btn-submit:hover { background: #218838; transform: translateY(-2px); }
-        .val { color: #d93025; font-weight: bold; float: right; font-size: 16px; }
-        h2, h3 { color: #002f6c; margin-top: 0; }
+        .box { max-width: 800px; margin: 20px auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 8px solid #002f6c; }
+        .row { display: flex; gap: 20px; margin-bottom: 15px; }
+        .card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 10px; background: #fdfdfd; }
+        input, select { width: 100%; padding: 12px; margin-top: 8px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 20px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        .val { color: #d93025; font-weight: bold; float: right; }
     </style>
 </head>
 <body>
 
-<div id="audit-input-panel">
-    <div class="input-container">
-        <h2 style="text-align:center; text-transform:uppercase;">South East Central Railway</h2>
-        <p style="text-align:center; color:#666; font-weight:bold;">SUPER ADMIN: M. LACHHWANI</p>
+<div id="audit-panel">
+    <div class="box">
+        <h2 style="text-align:center; color:#002f6c; margin-top:0;">SOUTH EAST CENTRAL RAILWAY</h2>
+        <p style="text-align:center; font-weight:bold; color:#666;">SUPER ADMIN: M. LACHHWANI</p>
         <hr>
         <div class="row">
-            <div style="flex:1;"><label><b>Journey Date:</b></label><input type="date" id="journey_date"></div>
-            <div style="flex:1;"><label><b>Train No:</b></label><input type="text" id="train_no" placeholder="e.g. 12834"></div>
+            <div style="flex:1;"><label><b>Journey Date:</b></label><input type="date" id="j_date"></div>
+            <div style="flex:1;"><label><b>Train No:</b></label><input type="text" id="t_no" placeholder="12834"></div>
         </div>
         <div class="row">
-            <div style="flex:1;"><label><b>From Station:</b></label><select id="stn_from"><option>Loading...</option></select></div>
-            <div style="flex:1;"><label><b>To Station:</b></label><select id="stn_to"><option>Loading...</option></select></div>
+            <div style="flex:1;"><label><b>From Station:</b></label><select id="s_from"><option>Loading...</option></select></div>
+            <div style="flex:1;"><label><b>To Station:</b></label><select id="s_to"><option>Loading...</option></select></div>
         </div>
         <div class="row">
             <div class="card">
-                <h3>LOCO PILOT (LP)</h3>
-                <label>ID:</label><input type="text" id="lp_id" oninput="fetchCrewData('lp')">
-                <div style="margin-top:15px;">Name: <span id="lp_n" class="val">-</span></div>
-                <div style="margin-top:10px;">Desig: <span id="lp_d" class="val">-</span></div>
+                <strong>LOCO PILOT (LP)</strong>
+                <input type="text" id="lp_id" placeholder="Enter ID" oninput="fillCrew('lp')">
+                <div style="margin-top:10px;">Name: <span id="lp_n" class="val">-</span></div>
             </div>
             <div class="card">
-                <h3>ASST LP (ALP)</h3>
-                <label>ID:</label><input type="text" id="alp_id" oninput="fetchCrewData('alp')">
-                <div style="margin-top:15px;">Name: <span id="alp_n" class="val">-</span></div>
-                <div style="margin-top:10px;">Desig: <span id="alp_d" class="val">-</span></div>
+                <strong>ASST LP (ALP)</strong>
+                <input type="text" id="alp_id" placeholder="Enter ID" oninput="fillCrew('alp')">
+                <div style="margin-top:10px;">Name: <span id="alp_n" class="val">-</span></div>
             </div>
         </div>
-        <div style="background:#fff3cd; padding:20px; border-radius:10px; border:1px solid #ffeeba; margin-top:10px;">
-            <label><b>Upload RTIS Loco CSV:</b></label>
+        <div style="background:#fff3cd; padding:15px; border-radius:10px; border:1px solid #ffeeba;">
+            <label><b>Upload RTIS CSV:</b></label>
             <input type="file" id="rtis_file" accept=".csv">
         </div>
-        <button class="btn-submit" onclick="executeFinalAudit()">GENERATE FINAL AUDIT MAP</button>
+        <button class="btn" onclick="runFinalAudit()">GENERATE MAP & PATH</button>
     </div>
 </div>
 
@@ -61,92 +55,80 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let map, crewMaster = [], stationMaster = [];
-    document.getElementById('journey_date').valueAsDate = new Date();
+    let map, stations = [], crews = [];
+    document.getElementById('j_date').valueAsDate = new Date();
 
-    // Load Master Data on Startup
+    // 1. Load Data
     window.onload = function() {
-        // Load Stations
         Papa.parse("master/station.csv", {
             download: true, header: true, skipEmptyLines: true,
             complete: function(r) {
-                stationMaster = r.data;
-                console.log("Stations Loaded: " + stationMaster.length);
-                let html = stationMaster.map(s => {
-                    let name = s.STATION || s.Station_Name || s.station;
-                    return `<option value="${name}">${name}</option>`;
-                }).join('');
-                document.getElementById('stn_from').innerHTML = html;
-                document.getElementById('stn_to').innerHTML = html;
+                stations = r.data;
+                let list = stations.map(s => `<option value="${s.STATION}">${s.STATION}</option>`).join('');
+                document.getElementById('s_from').innerHTML = list;
+                document.getElementById('s_to').innerHTML = list;
             }
         });
-        // Load Crew List [cite: 2026-01-08]
         Papa.parse("master/crew_master.csv", {
-            download: true, header: true, complete: r => { crewMaster = r.data; }
+            download: true, header: true,
+            complete: function(r) { crews = r.data; }
         });
     };
 
-    function fetchCrewData(type) {
+    function fillCrew(type) {
         let id = document.getElementById(type + '_id').value.toUpperCase().trim();
-        let crew = crewMaster.find(c => (c.CREW_ID || c.ID || c.Crew_ID || "").toString().toUpperCase() === id);
-        if(crew) {
-            document.getElementById(type + '_n').innerText = crew.CREW_NAME || crew.NAME || crew.Name;
-            document.getElementById(type + '_d').innerText = crew.DESIGNATION || crew.DESIG || crew.Designation;
-        }
+        let m = crews.find(c => (c.CREW_ID || c.ID || "").toString().toUpperCase() === id);
+        if(m) document.getElementById(type + '_n').innerText = m.CREW_NAME || m.NAME;
     }
 
-    function cleanCoord(val) {
-        if(!val) return NaN;
-        // Removes N, E, S, W and spaces for robust parsing
-        return parseFloat(val.toString().replace(/[NESW\s]/gi, ''));
+    // Special Cleaner for RTIS Coordinates
+    function clean(v) {
+        if(!v) return NaN;
+        return parseFloat(v.toString().replace(/[NnEeSsWw\s]/g, ''));
     }
 
-    function executeFinalAudit() {
-        const fileInput = document.getElementById('rtis_file');
-        if(!fileInput.files[0]) return alert("Please upload the RTIS CSV file first.");
+    function runFinalAudit() {
+        const file = document.getElementById('rtis_file').files[0];
+        if(!file) return alert("Select RTIS CSV File!");
 
-        // UI Transformation
-        document.getElementById('audit-input-panel').style.display = 'none';
+        document.getElementById('audit-panel').style.display = 'none';
         document.getElementById('map').style.display = 'block';
 
-        // Map Initialization
+        // Init Map
         map = L.map('map').setView([21.14, 79.08], 8);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        Papa.parse(fileInput.files[0], {
+        Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: function(results) {
+            complete: function(res) {
                 let pathPoints = [];
-                results.data.forEach(row => {
-                    let lat = cleanCoord(row.LATITUDE || row.LAT || row.latitude);
-                    let lng = cleanCoord(row.LONGITUDE || row.LNG || row.longitude);
-                    let speed = parseFloat(row.SPEED || row.Speed || 0);
-                    
+                res.data.forEach(row => {
+                    let lat = clean(row.LATITUDE || row.LAT);
+                    let lng = clean(row.LONGITUDE || row.LNG);
+                    let speed = parseFloat(row.SPEED || 0);
+
                     if(!isNaN(lat) && !isNaN(lng)) {
-                        let coord = [lat, lng];
-                        pathPoints.push(coord);
-                        // Speed Markers
-                        L.circleMarker(coord, {
+                        let pos = [lat, lng];
+                        pathPoints.push(pos);
+                        L.circleMarker(pos, {
                             radius: 3,
-                            color: speed > 0 ? '#007bff' : '#dc3545',
+                            color: speed > 0 ? 'blue' : 'red',
                             fillOpacity: 0.8
-                        }).addTo(map).bindTooltip(`Speed: ${speed} kmph<br>Time: ${row.TIME || row.Time}`);
+                        }).addTo(map).bindTooltip(`Speed: ${speed}`);
                     }
                 });
 
                 if(pathPoints.length > 0) {
-                    // Draw Thick Path Line
-                    L.polyline(pathPoints, {color: '#333', weight: 6, opacity: 0.9}).addTo(map);
+                    // Thick Path Line
+                    L.polyline(pathPoints, {color: 'black', weight: 6, opacity: 0.8}).addTo(map);
                     map.fitBounds(pathPoints);
                 }
 
-                // Overlay Station Markers
-                stationMaster.forEach(s => {
-                    let slat = cleanCoord(s.LAT || s.Lat || s.Latitude);
-                    let slng = cleanCoord(s.LNG || s.Lng || s.Longitude);
+                // Plot Stations
+                stations.forEach(s => {
+                    let slat = clean(s.LAT || s.Lat);
                     if(!isNaN(slat)) {
-                        L.circleMarker([slat, slng], {radius: 7, color: '#ff8c00', fillOpacity: 1}).addTo(map)
-                         .bindTooltip(s.STATION || s.Station_Name, {permanent: false});
+                        L.circleMarker([slat, clean(s.LNG || s.Lng)], {radius: 7, color: 'orange'}).addTo(map).bindTooltip(s.STATION);
                     }
                 });
             }
