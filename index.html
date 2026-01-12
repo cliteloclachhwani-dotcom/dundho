@@ -1,50 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR - Electrical (OP) Raipur</title>
+    <title>SECR - Safety Audit System</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #eaeff2; }
-        
-        /* Header Style */
-        #main-header {
-            position: absolute; top: 0; left: 0; width: 100%; background: white;
-            display: none; align-items: center; padding: 5px 15px;
-            border-bottom: 3px solid #002f6c; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        }
-        
-        /* Login Box Style */
-        #login-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 3000; display: flex; align-items: center; justify-content: center;
-        }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial; overflow: hidden; background: #eaeff2; }
+        #map { height: 100vh; width: 100vw; display: none; }
+        #main-header { position: absolute; top: 0; left: 0; width: 100%; background: white; display: none; align-items: center; padding: 5px 15px; border-bottom: 3px solid #002f6c; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); box-sizing: border-box; }
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 3000; display: flex; align-items: center; justify-content: center; }
         .login-card { background: white; padding: 30px; border-radius: 10px; width: 350px; text-align: center; }
         .login-card input { width: 90%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
         .login-card button { width: 96%; background: #002f6c; color: white; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-
-        /* Upload Panel */
-        #upload-panel {
-            position: absolute; bottom: 30px; left: 30px; background: white;
-            padding: 15px; border-radius: 8px; z-index: 2000; display: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-left: 5px solid #002f6c;
-        }
-
-        /* LC Barrier Icon */
+        #audit-input-panel { position: fixed; top: 65px; left: 0; width: 100%; height: calc(100% - 65px); background: #f4f7f6; z-index: 2500; display: none; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+        .input-container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .row { display: flex; gap: 20px; margin-bottom: 20px; }
+        .card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; }
+        .val { color: #d93025; font-weight: bold; float: right; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .btn-submit { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; }
         .lc-barrier { border-bottom: 3px solid black; border-left: 5px solid #333; height: 10px; width: 20px; background: repeating-linear-gradient(45deg, #000, #000 2px, #fff 2px, #fff 4px); }
     </style>
 </head>
 <body>
 
 <div id="main-header">
-    <img src="ir_logo.png" style="height:50px; margin-right:15px;" onerror="this.style.display='none'">
     <div style="flex-grow:1;">
         <div style="font-size:18px; font-weight:bold; color:#002f6c;">SOUTH EAST CENTRAL RAILWAY</div>
         <div style="font-size:12px; font-weight:bold; color:#d93025;">ELECTRICAL (OP) DEPARTMENT, RAIPUR</div>
     </div>
     <div style="text-align:right; font-weight:bold; padding-right:25px;">
-        <div style="font-size:9px; color:#666;">LOGGED IN AS:</div>
+        <div style="font-size:9px; color:#666;">CURRENT SESSION:</div>
         <div id="userDisplay" style="color:#002f6c; font-size:14px;">-</div>
     </div>
 </div>
@@ -60,103 +46,116 @@
     </div>
 </div>
 
-<div id="upload-panel">
-    <div style="font-weight:bold; margin-bottom:10px; font-size:12px;">GENERATE AUDIT: RTIS LOCO FILE</div>
-    <input type="file" id="locoFile" accept=".csv" style="font-size:12px; margin-bottom:10px;"><br>
-    <button onclick="alert('RTIS Logic Connecting...')" style="background:#28a745; color:white; border:none; padding:8px 15px; border-radius:4px; font-weight:bold; cursor:pointer; width:100%;">SUBMIT FOR AUDIT</button>
+<div id="audit-input-panel">
+    <div class="input-container">
+        <h3 style="color:#002f6c; border-bottom: 2px solid #002f6c; padding-bottom: 10px;">SAFETY AUDIT: INPUT DASHBOARD</h3>
+        <div class="row">
+            <div style="flex:1;"><label>Train No:</label><input type="text" id="tr_no" placeholder="12834"></div>
+            <div style="flex:1;"><label>From Station:</label><select id="stn_from"></select></div>
+            <div style="flex:1;"><label>To Station:</label><select id="stn_to"></select></div>
+        </div>
+        <div class="row">
+            <div class="card">
+                <h4>LOCO PILOT (LP)</h4>
+                <label>Crew ID:</label><input type="text" id="lp_id" oninput="autoFill('lp')">
+                <p>Name: <span id="lp_n" class="val">-</span></p>
+                <p>Desig: <span id="lp_d" class="val">-</span></p>
+                <p>CLI: <span id="lp_c" class="val">-</span></p>
+            </div>
+            <div class="card">
+                <h4>ASST LP (ALP)</h4>
+                <label>Crew ID:</label><input type="text" id="alp_id" oninput="autoFill('alp')">
+                <p>Name: <span id="alp_n" class="val">-</span></p>
+                <p>Desig: <span id="alp_d" class="val">-</span></p>
+                <p>CLI: <span id="alp_c" class="val">-</span></p>
+            </div>
+        </div>
+        <div style="background:#fff3cd; padding:15px; border-radius:8px; border:1px solid #ffeeba;">
+            <label><b>Upload RTIS CSV File:</b></label>
+            <input type="file" id="rtis_file" accept=".csv">
+        </div>
+        <button class="btn-submit" onclick="processAudit()">GENERATE INTERACTIVE MAP</button>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. Setup Map
     const map = L.map('map').setView([21.14, 79.08], 9);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let crewMaster = [];
-    let processedLC = new Set();
-    const admins = { "CLI_HQ": "hq123", "SR_DEE_OP": "srdee123", "ADEE_OP": "adee123" };
+    let stationMaster = [];
+    const superAdmins = ["lachhwanim@gmail.com", "cli.teloc.lachhwani@gmail.com"];
+    const admins = { "CLI_HQ": "hq123", "SR_DEE_OP": "srdee123" };
 
-    // 2. Coordinate Conversion
-    function conv(v) {
-        if(!v) return null;
-        let s = v.toString().trim();
-        let dot = s.indexOf('.');
-        if (dot < 2) return parseFloat(s);
-        return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
-    }
-
-    // 3. Load Masters (Signals, Stations, Crew)
-    function loadMasters() {
-        // Load Crew Master for Login [cite: 2026-01-08]
-        Papa.parse("master/crew_master.csv", {
-            download: true, header: true, skipEmptyLines: true,
-            complete: r => { crewMaster = r.data; }
-        });
-
-        const files = [
-            { file: 'master/station.csv', type: 'STN' },
-            { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
-            { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
-            { file: 'master/up_mid_signals.csv', type: 'UP-M', clr: 'purple' },
-            { file: 'master/dn_mid_signals.csv', type: 'DN-M', clr: 'red' }
-        ];
-
-        files.forEach(m => {
-            Papa.parse(m.file, {
-                download: true, header: true, skipEmptyLines: true,
-                complete: r => {
-                    r.data.forEach(row => {
-                        let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
-                        let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
-                        let name = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
-                        if(!lat || !lng) return;
-
-                        if(m.type === 'STN') {
-                            let eLat = conv(row['End_Lat ']), eLng = conv(row.End_Lng);
-                            if(eLat && eLng) L.rectangle([[lat, lng], [eLat, eLng]], {color: 'orange', weight: 2, fillOpacity: 0.2}).addTo(map);
-                            L.circleMarker([lat, lng], {radius: 7, color: 'orange', fillOpacity: 1}).addTo(map).bindTooltip(name);
-                        } else if(name.includes("L XING") || name.includes("LC")) {
-                            let lcId = name.replace(/[^0-9]/g, '');
-                            if(!processedLC.has(lcId)) {
-                                processedLC.add(lcId);
-                                L.marker([lat, lng], { icon: L.divIcon({ className: 'lc-barrier', iconSize: [20, 10] }) }).addTo(map).bindTooltip("LC:"+lcId);
-                            }
-                        } else if(name.includes("NEU SEC")) {
-                            L.marker([lat, lng], { icon: L.divIcon({ html: `<b style="color:#ff00ff; font-size:18px;">⚡</b>`, iconSize: [15, 15] }) }).addTo(map).bindTooltip(name);
-                        } else {
-                            L.circleMarker([lat, lng], { radius: 4, color: m.clr, fillOpacity: 0.8 }).addTo(map).bindTooltip(name);
-                        }
-                    });
-                }
-            });
-        });
-    }
-
-    // 4. Login Logic
-    function attemptLogin() {
-        const id = document.getElementById('uid').value.toUpperCase();
-        const pass = document.getElementById('upass').value;
-        const err = document.getElementById('loginErr');
-
-        if(admins[id] && admins[id] === pass) {
-            success(id);
-        } else {
-            let found = crewMaster.find(c => (c.CLI_ID || c.CREW_ID) === id);
-            if(found && pass === "cli123") {
-                success(found.CLI_NAME || found.CREW_NAME);
-            } else {
-                err.innerText = "Invalid ID or Password!";
-            }
+    // --- CHECK SUPER ADMIN AUTO LOGIN ---
+    function checkAutoLogin() {
+        // Chrome/Firefox context me user email fetch karne ka simulation
+        // Agar super admin browser context me hai:
+        const currentBrowserUser = "lachhwanim@gmail.com"; // Simulation
+        if(superAdmins.includes(currentBrowserUser)) {
+            console.log("Super Admin Detected. Bypassing Login...");
+            loginSuccess("SUPER ADMIN: M. Lachhwani");
         }
     }
 
-    function success(userName) {
+    function loadMasters() {
+        Papa.parse("master/crew_master.csv", { download: true, header: true, complete: r => { crewMaster = r.data; checkAutoLogin(); } });
+        Papa.parse("master/station.csv", { download: true, header: true, complete: r => {
+            stationMaster = r.data;
+            let opt = stationMaster.map(s => `<option value="${s.STATION}">${s.STATION}</option>`).join('');
+            document.getElementById('stn_from').innerHTML = opt;
+            document.getElementById('stn_to').innerHTML = opt;
+        }});
+    }
+
+    function attemptLogin() {
+        const id = document.getElementById('uid').value.toUpperCase();
+        const pass = document.getElementById('upass').value;
+        if(admins[id] && admins[id] === pass) { loginSuccess(id); }
+        else {
+            let found = crewMaster.find(c => (c.CLI_ID || c.CREW_ID) === id);
+            if(found && pass === "cli123") { loginSuccess(found.CLI_NAME || found.CREW_NAME); }
+            else { document.getElementById('loginErr').innerText = "Invalid credentials!"; }
+        }
+    }
+
+    function loginSuccess(name) {
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('main-header').style.display = 'flex';
-        document.getElementById('upload-panel').style.display = 'block';
-        document.getElementById('userDisplay').innerText = userName;
+        document.getElementById('audit-input-panel').style.display = 'block';
+        document.getElementById('userDisplay').innerText = name;
+    }
+
+    function autoFill(type) {
+        let id = document.getElementById(type + '_id').value.toUpperCase().trim();
+        let m = crewMaster.find(c => (c.CREW_ID || c.ID || "").toString().toUpperCase() === id);
+        if(m) {
+            document.getElementById(type + '_n').innerText = m.CREW_NAME || "-";
+            document.getElementById(type + '_d').innerText = m.DESIGNATION || "-";
+            document.getElementById(type + '_c').innerText = m.G_CLI || "-";
+        }
+    }
+
+    function processAudit() {
+        const file = document.getElementById('rtis_file').files[0];
+        if(!file) return alert("Select File!");
+        Papa.parse(file, { header: true, complete: r => {
+            document.getElementById('audit-input-panel').style.display = 'none';
+            document.getElementById('map').style.display = 'block';
+            map.invalidateSize();
+            let pts = [];
+            r.data.forEach(row => {
+                let lat = parseFloat(row.LATITUDE), lng = parseFloat(row.LONGITUDE);
+                if(lat && lng) {
+                    pts.push([lat, lng]);
+                    L.circleMarker([lat, lng], {radius:3, color:'blue'}).addTo(map).bindTooltip(`Spd: ${row.SPEED}`);
+                }
+            });
+            if(pts.length) { L.polyline(pts, {color:'black'}).addTo(map); map.fitBounds(pts); }
+        }});
     }
 
     window.onload = loadMasters;
