@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interactive Audit Map - SECR</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100vw; }
+        .audit-info { position: absolute; top: 10px; right: 10px; background: white; padding: 10px; z-index: 1000; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="audit-info" id="stats">
+        <b>LP:</b> <span id="disp_lp">-</span> | <b>ALP:</b> <span id="disp_alp">-</span><br>
+        <b>Train:</b> <span id="disp_train">-</span>
+    </div>
+    <button onclick="window.location.href='graph_view.html'" style="position:absolute; bottom:20px; right:20px; z-index:1000; padding:10px; background:blue; color:white; border:none; cursor:pointer;">MORE: Detailed Graph & Analysis</button>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="map_engine.js"></script>
+</body>
+</html>
