@@ -1,1 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loco Path Master - Mukesh Favorite</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-polyline-decorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; }
+        #map { height: 100vh; width: 100vw; background: #e8eaed; }
+        .panel { position: absolute; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 1000; }
+        .top-left { top: 10px; left: 50px; display: flex; gap: 8px; }
+        .info-panel { top: 10px; right: 10px; width: 240px; }
+        .upload-panel { bottom: 25px; left: 20px; border: 2px dashed #1a73e8; }
+        #speed-val { font-size: 32px; color: #d93025; font-weight: bold; }
+    </style>
+</head>
+<body>
 
+<div class="panel top-left">
+    <select id="crew1"><option>Mukesh (LP)</option></select>
+    <select id="crew2"><option>Select Designation</option></select>
+</div>
+
+<div class="panel info-panel">
+    <div style="font-size:11px; font-weight:bold;">LIVE SPEED</div>
+    <div id="speed-val">0.0 km/h</div>
+    <div style="font-size:11px; font-weight:bold; margin-top:10px;">DIRECTION & TIME</div>
+    <div id="time-val" style="font-weight:bold; color:#1a73e8;">--:--:--</div>
+    <div id="loc-val" style="font-weight:bold; color:#202124;">-</div>
+</div>
+
+<div class="panel upload-panel">
+    <strong>UPLOAD LOCO GPS CSV</strong><br>
+    <input type="file" id="locoFile" accept=".csv">
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([21.23, 79.28], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    function conv(v) {
+        if(!v) return 0;
+        let s = v.toString().trim();
+        let dot = s.indexOf('.');
+        if (dot < 2) return parseFloat(s);
+        return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
+    }
+
+    // Master files loading with error handling
+    function loadMasterData(fileName, type) {
+        Papa.parse("master/" + fileName, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                results.data.forEach(row => {
+                    if(type === 'station' && row.Station_Name) {
+                        L.rectangle([[conv(row['Start_Lat ']), conv(row.Start_Lng)], [conv(row['End_Lat ']), conv(row.End_Lng)]], 
+                        {color: "orange", weight: 2, fillOpacity: 0.2}).addTo(map).bindTooltip(row.Station_Name);
+                    } else if(row.SIGNAL_NAME) {
+                        let off = type==="DN"?0.00018 : type==="UP"?-0.00018 : 0;
+                        let clr = type==="DN"?"blue" : type==="UP"?"green" : "purple";
+                        L.circleMarker([conv(row.Lat)+off, conv(row.Lng)], {radius: 4, color: clr, fillOpacity: 0.7})
+                        .addTo(map).bindTooltip(row.SIGNAL_NAME + " [" + type + "]");
+                    }
+                });
+            },
+            error: function(err) { console.error("Could not load " + fileName, err); }
+        });
+    }
+
+    loadMasterData('station.csv', 'station');
+    loadMasterData('dn_signals.csv', 'DN');
+    loadMasterData('up_signals.csv', 'UP');
+    loadMasterData('dn_mid_signals.csv', 'MID');
+    loadMasterData('up_mid_signals.csv', 'MID');
+
+    let mapData = [];
+    let pathLayer, decorator, startM, endM;
+    let pointer = L.circleMarker([0,0], {radius: 8, color: 'white', weight: 2, fillColor: 'red', fillOpacity: 1}).addTo(map);
+
+    document.getElementById('locoFile').onchange = e => {
+        Papa.parse(e.target.files[0], {header: true, dynamicTyping: true, complete: r => {
+            mapData = r.data.filter(x => x.Latitude).map(x => ({
+                t:x['Logging Time'] || x['TIME'], lat:x.Latitude, lng:x.Longitude, s:x.Speed, st:x['last/cur stationCode']
+            }));
+
+            if(pathLayer) map.removeLayer(pathLayer);
+            if(decorator) map.removeLayer(decorator);
+            if(startM) map.removeLayer(startM);
+            if(endM) map.removeLayer(endM);
+
+            const coords = mapData.map(p => [p.lat, p.lng]);
+            pathLayer = L.polyline(coords, {color: '#1a73e8', weight: 5}).addTo(map);
+            
+            // Direction Arrows
+            decorator = L.polylineDecorator(pathLayer, {
+                patterns: [{offset: 25, repeat: 100, symbol: L.Symbol.arrowHead({pixelSize: 15, pathOptions: {fillOpacity: 1, color: '#ff0000'}})}]
+            }).addTo(map);
+
+            // Start and End Markers
+            startM = L.marker(coords[0]).addTo(map).bindPopup("START: " + mapData[0].t);
+            endM = L.marker(coords[coords.length-1]).addTo(map).bindPopup("END: " + mapData[mapData.length-1].t);
+
+            map.fitBounds(pathLayer.getBounds());
+            alert("Rasta aur Direction load ho gaya hai!");
+        }});
+    };
+
+    map.on('mousemove', e => {
+        if (!mapData.length) return;
+        let closest = mapData.reduce((prev, curr) => 
+            map.distance(e.latlng, [curr.lat, curr.lng]) < map.distance(e.latlng, [prev.lat, prev.lng]) ? curr : prev);
+        pointer.setLatLng([closest.lat, closest.lng]);
+        document.getElementById('speed-val').innerText = closest.s + " km/h";
+        document.getElementById('time-val').innerText = closest.t;
+        document.getElementById('loc-val').innerText = closest.st || "Moving...";
+    });
+</script>
+</body>
+</html>
