@@ -1,129 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR Safety Audit</title>
+    <title>SECR Safety Audit - Reset</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial; }
-        #map { position: absolute; top: 60px; bottom: 0; width: 100%; z-index: 1; background: #f0f0f0; }
-        #main-header { position: fixed; top: 0; width: 100%; background: white; height: 60px; display: flex; align-items: center; padding: 0 15px; border-bottom: 3px solid #002f6c; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.2); box-sizing: border-box; }
-        #audit-input-panel { position: fixed; top: 60px; left: 0; width: 100%; height: calc(100% - 60px); background: rgba(244, 247, 246, 0.95); z-index: 2500; overflow-y: auto; padding: 20px; box-sizing: border-box; }
-        .input-container { max-width: 800px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-top: 5px solid #002f6c; }
-        .row { display: flex; gap: 20px; margin-bottom: 20px; }
-        .card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; }
-        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; }
-        .btn-submit { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
-        .val { color: #d93025; font-weight: bold; float: right; }
+        body { margin: 0; font-family: Arial; background: #f4f7f6; }
+        #header { background: #002f6c; color: white; padding: 15px; text-align: center; }
+        #input-panel { max-width: 600px; margin: 20px auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        #map { height: 500px; width: 95%; margin: 20px auto; border: 2px solid #002f6c; display: none; }
+        .row { margin-bottom: 15px; }
+        input, select { width: 100%; padding: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; background: #28a745; color: white; border: none; font-size: 18px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div id="main-header">
-    <div style="flex-grow:1;">
-        <div style="font-size:16px; font-weight:bold; color:#002f6c;">SOUTH EAST CENTRAL RAILWAY</div>
-        <div id="userDisplay" style="font-size:12px; color:#d93025; font-weight:bold;">Welcome: M. LACHHWANI</div>
-    </div>
+<div id="header">
+    <h2>SECR SAFETY AUDIT - M. LACHHWANI</h2>
 </div>
 
-<div id="audit-input-panel">
-    <div class="input-container">
-        <h3 style="margin:0 0 20px 0; color:#002f6c; text-align:center;">AUDIT INPUT DASHBOARD</h3>
-        <div class="row">
-            <div style="flex:1;"><label><b>Journey Date</b></label><input type="date" id="j_date"></div>
-            <div style="flex:1;"><label><b>Train No</b></label><input type="text" id="t_no" placeholder="e.g. 12834"></div>
-        </div>
-        <div class="row">
-            <div style="flex:1;"><label><b>From Station</b></label><select id="s_from"><option value="">Select</option></select></div>
-            <div style="flex:1;"><label><b>To Station</b></label><select id="s_to"><option value="">Select</option></select></div>
-        </div>
-        <div class="row">
-            <div class="card">
-                <strong>LOCO PILOT (LP)</strong>
-                <input type="text" id="lp_id" placeholder="ID" oninput="findCrew('lp')">
-                <div style="margin-top:10px;">Name: <span id="lp_n" class="val">-</span></div>
-            </div>
-            <div class="card">
-                <strong>ASST LP (ALP)</strong>
-                <input type="text" id="alp_id" placeholder="ID" oninput="findCrew('alp')">
-                <div style="margin-top:10px;">Name: <span id="alp_n" class="val">-</span></div>
-            </div>
-        </div>
-        <div style="background:#fff3cd; padding:15px; border-radius:8px; margin-top:10px; border: 1px solid #ffeeba;">
-            <label><b>Upload RTIS CSV File:</b></label>
-            <input type="file" id="rtis_csv" accept=".csv">
-        </div>
-        <button class="btn-submit" onclick="startAudit()">GENERATE MAP</button>
+<div id="input-panel">
+    <div class="row">
+        <label>From Station:</label>
+        <select id="s_from"><option>Wait, Loading...</option></select>
     </div>
+    <div class="row">
+        <label>To Station:</label>
+        <select id="s_to"><option>Wait, Loading...</option></select>
+    </div>
+    <div class="row">
+        <input type="file" id="rtis_csv" accept=".csv">
+    </div>
+    <button onclick="drawPath()">GENERATE MAP</button>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let crews = [], stations = [];
-    document.getElementById('j_date').valueAsDate = new Date();
-
-    const map = L.map('map').setView([21.14, 79.08], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
+    let stations = [];
+    
+    // 1. Clear Cache & Load Stations
     window.onload = function() {
-        // Simple Station Load - No Indexing, Just direct names
-        Papa.parse("master/station.csv", {
-            download: true, header: true, skipEmptyLines: true,
-            complete: function(r) {
-                stations = r.data;
-                let opt = stations.map(s => {
-                    let n = s.STATION || s.Station || s.STN;
-                    return `<option value="${n}">${n}</option>`;
+        Papa.parse("master/station.csv?t=" + Date.now(), {
+            download: true, header: true,
+            complete: function(results) {
+                stations = results.data;
+                let html = stations.map(s => {
+                    let name = s.STATION || s.Station || s.STN || "Unknown";
+                    return `<option value="${name}">${name}</option>`;
                 }).join('');
-                document.getElementById('s_from').innerHTML += opt;
-                document.getElementById('s_to').innerHTML += opt;
+                document.getElementById('s_from').innerHTML = html;
+                document.getElementById('s_to').innerHTML = html;
             }
-        });
-
-        Papa.parse("master/crew_master.csv", {
-            download: true, header: true, complete: r => { crews = r.data; }
         });
     };
 
-    function findCrew(type) {
-        let id = document.getElementById(type + '_id').value.toUpperCase().trim();
-        let m = crews.find(c => (c.CREW_ID || c.ID || "").toString().toUpperCase() === id);
-        if(m) document.getElementById(type + '_n').innerText = m.CREW_NAME || m.NAME;
-    }
-
-    function startAudit() {
+    function drawPath() {
         const file = document.getElementById('rtis_csv').files[0];
-        if(!file) return alert("File chuniye!");
+        if(!file) return alert("Select CSV!");
 
-        document.getElementById('audit-input-panel').style.display = 'none';
-        map.invalidateSize();
+        document.getElementById('input-panel').style.display = 'none';
+        document.getElementById('map').style.display = 'block';
+
+        const map = L.map('map').setView([21.14, 79.08], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         Papa.parse(file, {
-            header: true, skipEmptyLines: true,
-            complete: function(res) {
-                let pts = [];
-                res.data.forEach(row => {
+            header: true,
+            complete: function(results) {
+                let pathPoints = [];
+                results.data.forEach(row => {
                     let lat = parseFloat(row.LATITUDE || row.LAT);
                     let lng = parseFloat(row.LONGITUDE || row.LNG);
                     if(!isNaN(lat) && !isNaN(lng)) {
-                        pts.push([lat, lng]);
-                        L.circleMarker([lat, lng], {radius: 2, color: row.SPEED > 0 ? 'blue' : 'red'}).addTo(map);
+                        pathPoints.push([lat, lng]);
                     }
                 });
 
-                if(pts.length > 0) {
-                    // YAHAN HAI FIX: Moti Black Line
-                    L.polyline(pts, {color: 'black', weight: 6, opacity: 0.9}).addTo(map);
-                    map.fitBounds(pts);
+                if(pathPoints.length > 0) {
+                    // Moti black line jo saaf dikhe
+                    L.polyline(pathPoints, {color: 'black', weight: 8}).addTo(map);
+                    map.fitBounds(pathPoints);
                 }
-
-                // Plot Stations as simple orange markers
-                stations.forEach(s => {
-                    let lat = parseFloat(s.LAT || s.Lat), lng = parseFloat(s.LNG || s.Lng);
-                    if(!isNaN(lat)) L.circleMarker([lat, lng], {radius: 6, color: 'orange'}).addTo(map).bindTooltip(s.STATION || s.Station);
-                });
             }
         });
     }
