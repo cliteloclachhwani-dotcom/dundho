@@ -1,44 +1,39 @@
 let crewMaster = [];
 let stationMaster = [];
 
-// 1. Load Master Files on Start
 window.onload = function() {
-    // Load Stations for Dropdowns
+    // 1. Load Station Master for Dropdowns
     Papa.parse("master/station.csv", {
         download: true, header: true, skipEmptyLines: true,
-        complete: function(results) {
-            stationMaster = results.data;
-            fillDropdowns();
+        complete: function(r) { 
+            stationMaster = r.data; 
+            fillDropdowns(); 
         }
     });
 
-    // Load Crew Master for Auto-fill [cite: 2026-01-08]
+    // 2. Load Crew Master [cite: 2026-01-08]
     Papa.parse("master/crew_master.csv", {
         download: true, header: true, skipEmptyLines: true,
-        complete: function(results) {
-            crewMaster = results.data;
-        }
+        complete: function(r) { crewMaster = r.data; }
     });
 };
 
 function fillDropdowns() {
-    const fromSelect = document.getElementById('stn_from');
-    const toSelect = document.getElementById('stn_to');
-    
-    let options = stationMaster.map(stn => {
-        let name = stn.Station_Name || stn.STATION || stn.NAME;
-        return `<option value="${name}">${name}</option>`;
-    }).join('');
-
-    fromSelect.innerHTML = options;
-    toSelect.innerHTML = options;
+    const fromS = document.getElementById('stn_from');
+    const toS = document.getElementById('stn_to');
+    let options = '<option value="">--Select--</option>' + 
+        stationMaster.map(stn => {
+            let n = stn.Station_Name || stn.STATION || stn.NAME;
+            return `<option value="${n}">${n}</option>`;
+        }).join('');
+    fromS.innerHTML = options;
+    toS.innerHTML = options;
 }
 
 function autoFillCrew(type) {
-    const idVal = document.getElementById(type + '_id').value.toUpperCase();
-    
-    // Pure master list se search karein [cite: 2026-01-08]
-    const member = crewMaster.find(c => (c.CREW_ID || c.ID) === idVal);
+    const idVal = document.getElementById(type + '_id').value.toUpperCase().trim();
+    // Crew search across all designations [cite: 2026-01-08]
+    const member = crewMaster.find(c => (c.CREW_ID || c.ID || c.CLI_ID || "").toString().toUpperCase().trim() === idVal);
 
     if (member) {
         document.getElementById(type + '_name').innerText = member.CREW_NAME || member.NAME || "-";
@@ -52,7 +47,24 @@ function autoFillCrew(type) {
 }
 
 function processAndGo() {
-    // Agle page par jane ka logic yahan aayega
-    alert("Data saved! Moving to Interactive Map...");
-    // window.location.href = "interactive_map.html"; 
+    const fileInput = document.getElementById('rtis_file');
+    const trainNo = document.getElementById('train_no').value;
+    
+    if (!fileInput.files[0]) { alert("Pehle RTIS CSV file select karein!"); return; }
+
+    const auditData = {
+        train: trainNo,
+        lp: document.getElementById('lp_name').innerText,
+        alp: document.getElementById('alp_name').innerText,
+        from: document.getElementById('stn_from').value,
+        to: document.getElementById('stn_to').value
+    };
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        localStorage.setItem('rtisData', e.target.result);
+        localStorage.setItem('auditMeta', JSON.stringify(auditData));
+        window.location.href = "map_view.html";
+    };
+    reader.readAsText(fileInput.files[0]);
 }
