@@ -5,17 +5,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Arial; background: #f4f7f6; margin: 20px; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-top: 5px solid #002f6c; }
         .header { text-align: center; border-bottom: 3px solid #002f6c; margin-bottom: 20px; padding-bottom: 10px; }
-        .section-box { display: flex; gap: 20px; margin-bottom: 20px; background: #eef2f7; padding: 15px; border-radius: 8px; }
+        .section-box { display: flex; gap: 20px; margin-bottom: 20px; background: #eef2f7; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
         .crew-container { display: flex; gap: 30px; margin-top: 20px; }
-        .crew-card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fff; }
-        .crew-card h4 { margin-top: 0; color: #002f6c; border-bottom: 2px solid #002f6c; }
-        .info-row { margin: 8px 0; font-size: 14px; }
-        .info-label { font-weight: bold; color: #555; }
-        .info-value { color: #002f6c; font-weight: bold; margin-left: 5px; }
-        input, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .submit-btn { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 25px; }
+        .crew-card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .crew-card h4 { margin-top: 0; color: #002f6c; border-bottom: 2px solid #002f6c; padding-bottom: 5px; }
+        .info-row { margin: 10px 0; font-size: 14px; border-bottom: 1px dashed #eee; padding-bottom: 5px; }
+        .info-label { font-weight: bold; color: #555; width: 100px; display: inline-block; }
+        .info-value { color: #d93025; font-weight: bold; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .submit-btn { width: 100%; padding: 15px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 25px; transition: 0.3s; }
+        .submit-btn:hover { background: #218838; }
     </style>
 </head>
 <body>
@@ -45,7 +46,7 @@
         <div class="crew-card">
             <h4>LOCO PILOT (LP)</h4>
             <label>LP ID:</label>
-            <input type="text" id="lp_id" placeholder="Enter ID" oninput="autoFillCrew('lp')">
+            <input type="text" id="lp_id" placeholder="Enter LP ID" oninput="autoFillCrew('lp')">
             <div class="info-row"><span class="info-label">LP Name:</span><span id="lp_name" class="info-value">-</span></div>
             <div class="info-row"><span class="info-label">Designation:</span><span id="lp_desig" class="info-value">-</span></div>
             <div class="info-row"><span class="info-label">G_CLI:</span><span id="lp_cli" class="info-value">-</span></div>
@@ -54,21 +55,80 @@
         <div class="crew-card">
             <h4>ASST LOCO PILOT (ALP)</h4>
             <label>ALP ID:</label>
-            <input type="text" id="alp_id" placeholder="Enter ID" oninput="autoFillCrew('alp')">
+            <input type="text" id="alp_id" placeholder="Enter ALP ID" oninput="autoFillCrew('alp')">
             <div class="info-row"><span class="info-label">ALP Name:</span><span id="alp_name" class="info-value">-</span></div>
             <div class="info-row"><span class="info-label">Designation:</span><span id="alp_desig" class="info-value">-</span></div>
             <div class="info-row"><span class="info-label">G_CLI:</span><span id="alp_cli" class="info-value">-</span></div>
         </div>
     </div>
 
-    <div style="margin-top:20px;">
-        <label><b>Upload RTIS CSV File:</b></label>
+    <div style="margin-top:20px; background: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba;">
+        <label><b>Upload RTIS CSV File (e.g., 37003.csv):</b></label>
         <input type="file" id="rtis_file" accept=".csv">
     </div>
 
-    <button class="submit-btn" onclick="processAndGo()">SUBMIT FOR INTERACTIVE MAP</button>
+    <button class="submit-btn" onclick="goToAnalysis()">PROCEED TO INTERACTIVE AUDIT</button>
 </div>
 
-<script src="input_logic.js"></script>
+<script>
+    let crewMaster = [];
+    let stationMaster = [];
+
+    // Auto-load files on page open
+    window.onload = function() {
+        // Load Station Master from master folder
+        Papa.parse("master/station.csv", {
+            download: true, header: true, skipEmptyLines: true,
+            complete: function(r) { 
+                stationMaster = r.data; 
+                fillDropdowns(); 
+            }
+        });
+
+        // Load Crew Master from master folder
+        Papa.parse("master/crew_master.csv", {
+            download: true, header: true, skipEmptyLines: true,
+            complete: function(r) { crewMaster = r.data; }
+        });
+    };
+
+    function fillDropdowns() {
+        const fromS = document.getElementById('stn_from');
+        const toS = document.getElementById('stn_to');
+        let options = '<option value="">--Select Station--</option>' + 
+            stationMaster.map(stn => {
+                let n = stn.Station_Name || stn.STATION || stn.NAME;
+                return n ? `<option value="${n}">${n}</option>` : '';
+            }).join('');
+        fromS.innerHTML = options;
+        toS.innerHTML = options;
+    }
+
+    function autoFillCrew(type) {
+        const idVal = document.getElementById(type + '_id').value.toUpperCase().trim();
+        // Search in the loaded crew list
+        const member = crewMaster.find(c => {
+            let mid = (c.CREW_ID || c.ID || c.CLI_ID || "").toString().toUpperCase().trim();
+            return mid === idVal;
+        });
+
+        if (member) {
+            document.getElementById(type + '_name').innerText = member.CREW_NAME || member.NAME || "-";
+            document.getElementById(type + '_desig').innerText = member.DESIGNATION || member.DESIG || "-";
+            document.getElementById(type + '_cli').innerText = member.G_CLI || member.CLI_NAME || "-";
+        } else {
+            document.getElementById(type + '_name').innerText = "-";
+            document.getElementById(type + '_desig').innerText = "-";
+            document.getElementById(type + '_cli').innerText = "-";
+        }
+    }
+
+    function goToAnalysis() {
+        const file = document.getElementById('rtis_file').files[0];
+        if(!file) { alert("Please upload RTIS CSV file first!"); return; }
+        alert("Redirecting to Interactive Audit Map...");
+        // Future redirection logic here
+    }
+</script>
 </body>
 </html>
