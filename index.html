@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR Safety Audit - Final Strike</title>
+    <title>SECR Safety Audit - Final Master</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Arial; background: #eaeff2; }
         #audit-panel { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f4f7f6; z-index: 9999; padding: 20px; box-sizing: border-box; overflow-y: auto; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; display: none; }
-        .box { max-width: 800px; margin: 20px auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 8px solid #002f6c; }
-        .row { display: flex; gap: 20px; margin-bottom: 15px; }
-        .card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 10px; background: #fdfdfd; }
-        input, select { width: 100%; padding: 12px; margin-top: 8px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        .btn { width: 100%; padding: 18px; background: #28a745; color: white; border: none; border-radius: 10px; font-size: 20px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        .box { max-width: 850px; margin: 10px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 8px solid #002f6c; }
+        .row { display: flex; gap: 15px; margin-bottom: 12px; }
+        .card { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fdfdfd; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        .btn { width: 100%; padding: 16px; background: #28a745; color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 15px; }
         .val { color: #d93025; font-weight: bold; float: right; }
     </style>
 </head>
@@ -20,30 +20,30 @@
 
 <div id="audit-panel">
     <div class="box">
-        <h2 style="text-align:center; color:#002f6c; margin-top:0;">SOUTH EAST CENTRAL RAILWAY</h2>
-        <p style="text-align:center; font-weight:bold; color:#666;">SUPER ADMIN: M. LACHHWANI</p>
+        <h2 style="text-align:center; color:#002f6c; margin:0;">SOUTH EAST CENTRAL RAILWAY</h2>
+        <p style="text-align:center; font-weight:bold; color:#666; margin:5px 0;">SUPER ADMIN: M. LACHHWANI</p>
         <hr>
         <div class="row">
             <div style="flex:1;"><label><b>Journey Date:</b></label><input type="date" id="j_date"></div>
-            <div style="flex:1;"><label><b>Train No:</b></label><input type="text" id="t_no" placeholder="12834"></div>
+            <div style="flex:1;"><label><b>Train No:</b></label><input type="text" id="t_no" placeholder="e.g. 12834"></div>
         </div>
         <div class="row">
-            <div style="flex:1;"><label><b>From Station:</b></label><select id="s_from"><option>Loading...</option></select></div>
-            <div style="flex:1;"><label><b>To Station:</b></label><select id="s_to"><option>Loading...</option></select></div>
+            <div style="flex:1;"><label><b>From Station:</b></label><select id="s_from"><option>Wait...</option></select></div>
+            <div style="flex:1;"><label><b>To Station:</b></label><select id="s_to"><option>Wait...</option></select></div>
         </div>
         <div class="row">
             <div class="card">
                 <strong>LOCO PILOT (LP)</strong>
-                <input type="text" id="lp_id" placeholder="Enter ID" oninput="fillCrew('lp')">
-                <div style="margin-top:10px;">Name: <span id="lp_n" class="val">-</span></div>
+                <input type="text" id="lp_id" placeholder="ID" oninput="fillCrew('lp')">
+                <div style="margin-top:8px;">Name: <span id="lp_n" class="val">-</span></div>
             </div>
             <div class="card">
                 <strong>ASST LP (ALP)</strong>
-                <input type="text" id="alp_id" placeholder="Enter ID" oninput="fillCrew('alp')">
-                <div style="margin-top:10px;">Name: <span id="alp_n" class="val">-</span></div>
+                <input type="text" id="alp_id" placeholder="ID" oninput="fillCrew('alp')">
+                <div style="margin-top:8px;">Name: <span id="alp_n" class="val">-</span></div>
             </div>
         </div>
-        <div style="background:#fff3cd; padding:15px; border-radius:10px; border:1px solid #ffeeba;">
+        <div style="background:#fff3cd; padding:15px; border-radius:8px; border:1px solid #ffeeba;">
             <label><b>Upload RTIS CSV:</b></label>
             <input type="file" id="rtis_file" accept=".csv">
         </div>
@@ -58,13 +58,18 @@
     let map, stations = [], crews = [];
     document.getElementById('j_date').valueAsDate = new Date();
 
-    // 1. Load Data
+    // 1. Data Loader with Header Sanitizer
     window.onload = function() {
         Papa.parse("master/station.csv", {
             download: true, header: true, skipEmptyLines: true,
             complete: function(r) {
                 stations = r.data;
-                let list = stations.map(s => `<option value="${s.STATION}">${s.STATION}</option>`).join('');
+                console.log("Stations Loaded: " + stations.length);
+                // Robust Column Matching for Dropdown
+                let list = stations.map(s => {
+                    let name = s.STATION || s.Station || s.STN_NAME || "STN";
+                    return `<option value="${name}">${name}</option>`;
+                }).join('');
                 document.getElementById('s_from').innerHTML = list;
                 document.getElementById('s_to').innerHTML = list;
             }
@@ -77,12 +82,11 @@
 
     function fillCrew(type) {
         let id = document.getElementById(type + '_id').value.toUpperCase().trim();
-        let m = crews.find(c => (c.CREW_ID || c.ID || "").toString().toUpperCase() === id);
-        if(m) document.getElementById(type + '_n').innerText = m.CREW_NAME || m.NAME;
+        let m = crews.find(c => (c.CREW_ID || c.ID || c.Crew_ID || "").toString().toUpperCase() === id);
+        if(m) document.getElementById(type + '_n').innerText = m.CREW_NAME || m.NAME || m.Crew_Name;
     }
 
-    // Special Cleaner for RTIS Coordinates
-    function clean(v) {
+    function cleanCoord(v) {
         if(!v) return NaN;
         return parseFloat(v.toString().replace(/[NnEeSsWw\s]/g, ''));
     }
@@ -94,8 +98,8 @@
         document.getElementById('audit-panel').style.display = 'none';
         document.getElementById('map').style.display = 'block';
 
-        // Init Map
-        map = L.map('map').setView([21.14, 79.08], 8);
+        // Full Screen Initialization
+        map = L.map('map').setView([21.14, 79.08], 9);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         Papa.parse(file, {
@@ -103,9 +107,10 @@
             complete: function(res) {
                 let pathPoints = [];
                 res.data.forEach(row => {
-                    let lat = clean(row.LATITUDE || row.LAT);
-                    let lng = clean(row.LONGITUDE || row.LNG);
-                    let speed = parseFloat(row.SPEED || 0);
+                    // Supporting multiple possible header names for RTIS
+                    let lat = cleanCoord(row.LATITUDE || row.LAT || row.Lat);
+                    let lng = cleanCoord(row.LONGITUDE || row.LNG || row.Lng);
+                    let speed = parseFloat(row.SPEED || row.Speed || 0);
 
                     if(!isNaN(lat) && !isNaN(lng)) {
                         let pos = [lat, lng];
@@ -114,21 +119,23 @@
                             radius: 3,
                             color: speed > 0 ? 'blue' : 'red',
                             fillOpacity: 0.8
-                        }).addTo(map).bindTooltip(`Speed: ${speed}`);
+                        }).addTo(map);
                     }
                 });
 
                 if(pathPoints.length > 0) {
                     // Thick Path Line
-                    L.polyline(pathPoints, {color: 'black', weight: 6, opacity: 0.8}).addTo(map);
-                    map.fitBounds(pathPoints);
+                    L.polyline(pathPoints, {color: 'black', weight: 6, opacity: 0.9}).addTo(map);
+                    map.fitBounds(pathPoints, {padding: [50, 50]});
                 }
 
-                // Plot Stations
+                // Plot Stations on top
                 stations.forEach(s => {
-                    let slat = clean(s.LAT || s.Lat);
+                    let slat = cleanCoord(s.LAT || s.Lat);
+                    let slng = cleanCoord(s.LNG || s.Lng);
                     if(!isNaN(slat)) {
-                        L.circleMarker([slat, clean(s.LNG || s.Lng)], {radius: 7, color: 'orange'}).addTo(map).bindTooltip(s.STATION);
+                        L.circleMarker([slat, slng], {radius: 7, color: 'orange', fillOpacity: 1}).addTo(map)
+                         .bindTooltip(s.STATION || s.Station || "STN");
                     }
                 });
             }
