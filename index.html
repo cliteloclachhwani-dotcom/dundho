@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sanket 9.0 - Precise Railway Mapping</title>
+    <title>Sanket 10.0 - Smart Railway Auditor</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; background: #f8f9fa; }
+        body { margin: 0; padding: 0; font-family: sans-serif; }
+        #map { height: 100vh; width: 100vw; background: #e8eaed; }
         .legend {
             position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: white; padding: 10px; border-radius: 5px; border: 2px solid #002f6c;
-            font-family: Arial; font-size: 11px; line-height: 1.6;
+            background: white; padding: 12px; border-radius: 8px; border: 2px solid #002f6c;
+            font-size: 11px; line-height: 1.8; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
     </style>
 </head>
@@ -18,12 +18,12 @@
 
 <div id="map"></div>
 <div class="legend">
-    <b>MASTER LEGEND:</b><br>
+    <b>RAILWAY ASSETS:</b><br>
     <span style="color:orange">■</span> Station Yard<br>
-    <span style="color:green">●</span> UP Signals<br>
-    <span style="color:blue">●</span> DN Signals<br>
-    <span style="color:purple">●</span> UP Mid-Section<br>
-    <span style="color:red">●</span> DN Mid-Section
+    <span style="color:green">●</span> UP Signals | <span style="color:blue">●</span> DN Signals<br>
+    <span style="color:purple">●</span> UP Mid | <span style="color:red">●</span> DN Mid<br>
+    <span style="border:1px solid black; padding: 0 3px;">X</span> LC Gate (Unique)<br>
+    <span style="color:black"><b>⚡</b></span> Neutral Section
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -31,7 +31,6 @@
     const map = L.map('map').setView([21.14, 79.08], 8);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Precise DDMM.MMMM Conversion
     function conv(v) {
         if(!v) return null;
         let s = v.toString().trim();
@@ -40,45 +39,54 @@
         return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
 
+    // LC Gates ko track karne ke liye set (Duplicates rokne ke liye)
+    let processedLC = new Set();
+
     const masters = [
-        { file: 'master/station.csv', type: 'STN', clr: 'orange', rad: 6 },
-        { file: 'master/up_signals.csv', type: 'UP', clr: 'green', rad: 4 },
-        { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue', rad: 4 },
-        { file: 'master/up_mid_signals.csv', type: 'UP-MID', clr: 'purple', rad: 4 },
-        { file: 'master/dn_mid_signals.csv', type: 'DN-MID', clr: 'red', rad: 4 }
+        { file: 'master/station.csv', type: 'STN', clr: 'orange' },
+        { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
+        { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
+        { file: 'master/up_mid_signals.csv', type: 'UP-MID', clr: 'purple' },
+        { file: 'master/dn_mid_signals.csv', type: 'DN-MID', clr: 'red' }
     ];
 
     masters.forEach(m => {
         Papa.parse(m.file, {
-            download: true,
-            header: true,
-            skipEmptyLines: true,
+            download: true, header: true, skipEmptyLines: true,
             complete: function(r) {
                 r.data.forEach(row => {
                     let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
                     let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
-                    let name = row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION;
+                    let rawName = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
 
                     if(lat && lng) {
-                        // Logic: Signals should be tight to the line
-                        // Station Yard display
-                        if(m.type === 'STN') {
-                            let eLat = conv(row['End_Lat ']);
-                            let eLng = conv(row.End_Lng);
-                            if(eLat && eLng) {
-                                L.rectangle([[lat, lng], [eLat, eLng]], {
-                                    color: 'orange', weight: 2, fillOpacity: 0.1
-                                }).addTo(map).bindTooltip(name + " [Station Yard]");
+                        // 1. LC GATE LOGIC (Duplicate Filtering)
+                        if(rawName.includes("L XING") || rawName.includes("LC")) {
+                            let lcNum = rawName.split(':').pop().trim(); // Extract number after colon
+                            if(!processedLC.has(lcNum)) {
+                                processedLC.add(lcNum);
+                                L.marker([lat, lng], {
+                                    icon: L.divIcon({
+                                        className: 'lc-icon',
+                                        html: `<div style="background:yellow; border:2px solid black; padding:2px; font-weight:bold; font-size:10px; width:30px; text-align:center;">LC:${lcNum}</div>`
+                                    })
+                                }).addTo(map).bindTooltip("Level Crossing: " + lcNum);
                             }
-                            L.circleMarker([lat, lng], {radius: 6, color: 'orange', fillOpacity: 0.9}).addTo(map).bindTooltip(name);
+                            return; // Skip drawing it as a normal signal
+                        }
+
+                        // 2. NEUTRAL SECTION LOGIC
+                        if(rawName.includes("NEU SEC")) {
+                            L.circleMarker([lat, lng], {radius: 5, color: 'black', fillColor: 'yellow', fillOpacity: 1})
+                             .addTo(map).bindTooltip("Neutral Section: " + rawName);
+                            return;
+                        }
+
+                        // 3. REGULAR SIGNALS & STATIONS
+                        if(m.type === 'STN') {
+                            L.circleMarker([lat, lng], {radius: 7, color: 'orange', fillOpacity: 0.9}).addTo(map).bindTooltip(rawName);
                         } else {
-                            // Signal markers with category-specific colors
-                            L.circleMarker([lat, lng], {
-                                radius: m.rad,
-                                color: m.clr,
-                                fillOpacity: 0.8,
-                                weight: 2
-                            }).addTo(map).bindTooltip(`<b>${name}</b><br>Type: ${m.type}`);
+                            L.circleMarker([lat, lng], {radius: 4, color: m.clr, fillOpacity: 0.8}).addTo(map).bindTooltip(rawName + " (" + m.type + ")");
                         }
                     }
                 });
