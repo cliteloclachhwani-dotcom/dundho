@@ -1,34 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sanket 10.0 - Smart Railway Auditor</title>
+    <title>Sanket 11.0 - Clean Icons</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: sans-serif; }
-        #map { height: 100vh; width: 100vw; background: #e8eaed; }
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; background: #eaeff2; }
         .legend {
-            position: absolute; bottom: 20px; left: 20px; z-index: 1000;
-            background: white; padding: 12px; border-radius: 8px; border: 2px solid #002f6c;
-            font-size: 11px; line-height: 1.8; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            position: absolute; bottom: 25px; left: 20px; z-index: 1000;
+            background: white; padding: 10px; border-radius: 6px; border: 1.5px solid #002f6c;
+            font-family: 'Segoe UI', sans-serif; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
+        /* Custom Small Icons */
+        .asset-icon { display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 50%; }
+        .lc-gate { border: 1px solid black; background: #ffff00; color: black; font-size: 9px; }
+        .neu-sec { color: #ff00ff; font-size: 14px; text-shadow: 1px 1px 1px #000; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div class="legend">
-    <b>RAILWAY ASSETS:</b><br>
-    <span style="color:orange">■</span> Station Yard<br>
-    <span style="color:green">●</span> UP Signals | <span style="color:blue">●</span> DN Signals<br>
-    <span style="color:purple">●</span> UP Mid | <span style="color:red">●</span> DN Mid<br>
-    <span style="border:1px solid black; padding: 0 3px;">X</span> LC Gate (Unique)<br>
-    <span style="color:black"><b>⚡</b></span> Neutral Section
+    <b>ASSET SYMBOLS:</b><br>
+    <span style="color:orange">●</span> Station | <span style="color:green">●</span> UP | <span style="color:blue">●</span> DN<br>
+    <span style="color:purple">●</span> UP-M | <span style="color:red">●</span> DN-M<br>
+    <span style="color:black; font-weight:bold;">X</span> LC Gate | <span style="color:#ff00ff;">⚡</span> Neutral Section
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map').setView([21.14, 79.08], 8);
+    const map = L.map('map').setView([21.14, 79.08], 9);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     function conv(v) {
@@ -39,15 +41,14 @@
         return parseFloat(s.substring(0, dot-2)) + (parseFloat(s.substring(dot-2))/60);
     }
 
-    // LC Gates ko track karne ke liye set (Duplicates rokne ke liye)
     let processedLC = new Set();
 
     const masters = [
         { file: 'master/station.csv', type: 'STN', clr: 'orange' },
         { file: 'master/up_signals.csv', type: 'UP', clr: 'green' },
         { file: 'master/dn_signals.csv', type: 'DN', clr: 'blue' },
-        { file: 'master/up_mid_signals.csv', type: 'UP-MID', clr: 'purple' },
-        { file: 'master/dn_mid_signals.csv', type: 'DN-MID', clr: 'red' }
+        { file: 'master/up_mid_signals.csv', type: 'UP-M', clr: 'purple' },
+        { file: 'master/dn_mid_signals.csv', type: 'DN-M', clr: 'red' }
     ];
 
     masters.forEach(m => {
@@ -57,37 +58,36 @@
                 r.data.forEach(row => {
                     let lat = conv(row.Lat || row.LAT || row.Latitude || row['Start_Lat ']);
                     let lng = conv(row.Lng || row.LNG || row.Longitude || row.Start_Lng);
-                    let rawName = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
+                    let name = (row.Station_Name || row.Signal_Name || row.SIGNAL_NAME || row.STATION || "").toUpperCase();
 
                     if(lat && lng) {
-                        // 1. LC GATE LOGIC (Duplicate Filtering)
-                        if(rawName.includes("L XING") || rawName.includes("LC")) {
-                            let lcNum = rawName.split(':').pop().trim(); // Extract number after colon
-                            if(!processedLC.has(lcNum)) {
-                                processedLC.add(lcNum);
+                        // 1. CLEAN LC GATE (Small 'X')
+                        if(name.includes("L XING") || name.includes("LC")) {
+                            let lcId = name.replace(/[^0-9]/g, ''); // Sirf number nikalein
+                            if(!processedLC.has(lcId)) {
+                                processedLC.add(lcId);
                                 L.marker([lat, lng], {
-                                    icon: L.divIcon({
-                                        className: 'lc-icon',
-                                        html: `<div style="background:yellow; border:2px solid black; padding:2px; font-weight:bold; font-size:10px; width:30px; text-align:center;">LC:${lcNum}</div>`
-                                    })
-                                }).addTo(map).bindTooltip("Level Crossing: " + lcNum);
+                                    icon: L.divIcon({ className: 'asset-icon', html: `<b style="font-size:12px">X</b>`, iconSize: [15, 15] })
+                                }).addTo(map).bindTooltip("LC Gate: " + lcId);
                             }
-                            return; // Skip drawing it as a normal signal
-                        }
-
-                        // 2. NEUTRAL SECTION LOGIC
-                        if(rawName.includes("NEU SEC")) {
-                            L.circleMarker([lat, lng], {radius: 5, color: 'black', fillColor: 'yellow', fillOpacity: 1})
-                             .addTo(map).bindTooltip("Neutral Section: " + rawName);
                             return;
                         }
 
-                        // 3. REGULAR SIGNALS & STATIONS
-                        if(m.type === 'STN') {
-                            L.circleMarker([lat, lng], {radius: 7, color: 'orange', fillOpacity: 0.9}).addTo(map).bindTooltip(rawName);
-                        } else {
-                            L.circleMarker([lat, lng], {radius: 4, color: m.clr, fillOpacity: 0.8}).addTo(map).bindTooltip(rawName + " (" + m.type + ")");
+                        // 2. CLEAN NEUTRAL SECTION (⚡)
+                        if(name.includes("NEU SEC")) {
+                            L.marker([lat, lng], {
+                                icon: L.divIcon({ className: 'neu-sec', html: `⚡`, iconSize: [15, 15] })
+                            }).addTo(map).bindTooltip("Neutral Section: " + name);
+                            return;
                         }
+
+                        // 3. REGULAR ASSETS
+                        L.circleMarker([lat, lng], {
+                            radius: m.type === 'STN' ? 6 : 4,
+                            color: m.clr,
+                            fillOpacity: 0.8,
+                            weight: 1.5
+                        }).addTo(map).bindTooltip(name + " (" + m.type + ")");
                     }
                 });
             }
