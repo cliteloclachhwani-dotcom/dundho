@@ -1,77 +1,78 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SECR Safety Audit - Reset</title>
+    <title>SECR Safety Audit - Final</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { margin: 0; font-family: Arial; background: #f4f7f6; }
-        #header { background: #002f6c; color: white; padding: 15px; text-align: center; }
-        #input-panel { max-width: 600px; margin: 20px auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-        #map { height: 500px; width: 95%; margin: 20px auto; border: 2px solid #002f6c; display: none; }
-        .row { margin-bottom: 15px; }
-        input, select { width: 100%; padding: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background: #28a745; color: white; border: none; font-size: 18px; font-weight: bold; cursor: pointer; }
+        body { margin: 0; font-family: 'Segoe UI', Arial; background: #f0f2f5; }
+        .top-bar { background: #002f6c; color: white; padding: 15px; text-align: center; font-size: 20px; font-weight: bold; }
+        #input-box { max-width: 600px; margin: 30px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 5px solid #d93025; }
+        #map { height: 600px; width: 95%; margin: 20px auto; border: 3px solid #002f6c; display: none; }
+        .field { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        select, input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+        .btn-go { width: 100%; padding: 18px; background: #28a745; color: white; border: none; font-size: 20px; font-weight: bold; cursor: pointer; border-radius: 8px; }
     </style>
 </head>
 <body>
 
-<div id="header">
-    <h2>SECR SAFETY AUDIT - M. LACHHWANI</h2>
-</div>
+<div class="top-bar">SECR SAFETY AUDIT - M. LACHHWANI</div>
 
-<div id="input-panel">
-    <div class="row">
-        <label>From Station:</label>
-        <select id="s_from"><option>Wait, Loading...</option></select>
+<div id="input-box">
+    <div class="field">
+        <label>Select From Station:</label>
+        <select id="stn_from"><option>Loading Stations...</option></select>
     </div>
-    <div class="row">
-        <label>To Station:</label>
-        <select id="s_to"><option>Wait, Loading...</option></select>
+    <div class="field">
+        <label>Select To Station:</label>
+        <select id="stn_to"><option>Loading Stations...</option></select>
     </div>
-    <div class="row">
+    <div class="field">
+        <label>Upload RTIS CSV File:</label>
         <input type="file" id="rtis_csv" accept=".csv">
     </div>
-    <button onclick="drawPath()">GENERATE MAP</button>
+    <button class="btn-go" onclick="showMap()">GENERATE MAP & PATH</button>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    let stations = [];
-    
-    // 1. Clear Cache & Load Stations
+    let stationMaster = [];
+
+    // 1. Force Refresh Data on Load
     window.onload = function() {
-        Papa.parse("master/station.csv?t=" + Date.now(), {
-            download: true, header: true,
+        Papa.parse("master/station.csv?nocache=" + Date.now(), {
+            download: true, header: true, skipEmptyLines: true,
             complete: function(results) {
-                stations = results.data;
-                let html = stations.map(s => {
-                    let name = s.STATION || s.Station || s.STN || "Unknown";
-                    return `<option value="${name}">${name}</option>`;
+                stationMaster = results.data;
+                console.log("Stations Loaded: " + stationMaster.length);
+                let list = stationMaster.map(s => {
+                    let n = s.STATION || s.Station || s.STN || "Unknown";
+                    return `<option value="${n}">${n}</option>`;
                 }).join('');
-                document.getElementById('s_from').innerHTML = html;
-                document.getElementById('s_to').innerHTML = html;
+                document.getElementById('stn_from').innerHTML = list;
+                document.getElementById('stn_to').innerHTML = list;
             }
         });
     };
 
-    function drawPath() {
+    function showMap() {
         const file = document.getElementById('rtis_csv').files[0];
-        if(!file) return alert("Select CSV!");
+        if(!file) return alert("Pehle CSV file select karein!");
 
-        document.getElementById('input-panel').style.display = 'none';
+        document.getElementById('input-box').style.display = 'none';
         document.getElementById('map').style.display = 'block';
 
         const map = L.map('map').setView([21.14, 79.08], 7);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
         Papa.parse(file, {
-            header: true,
-            complete: function(results) {
+            header: true, skipEmptyLines: true,
+            complete: function(res) {
                 let pathPoints = [];
-                results.data.forEach(row => {
+                res.data.forEach(row => {
                     let lat = parseFloat(row.LATITUDE || row.LAT);
                     let lng = parseFloat(row.LONGITUDE || row.LNG);
                     if(!isNaN(lat) && !isNaN(lng)) {
@@ -81,9 +82,21 @@
 
                 if(pathPoints.length > 0) {
                     // Moti black line jo saaf dikhe
-                    L.polyline(pathPoints, {color: 'black', weight: 8}).addTo(map);
+                    L.polyline(pathPoints, {color: 'black', weight: 8, opacity: 1}).addTo(map);
                     map.fitBounds(pathPoints);
+                    
+                    // Add markers for each point for visibility
+                    pathPoints.forEach(p => L.circleMarker(p, {radius: 2, color: 'blue'}).addTo(map));
                 }
+
+                // Plot Stations as Orange Circles
+                stationMaster.forEach(s => {
+                    let slat = parseFloat(s.LAT || s.Lat), slng = parseFloat(s.LNG || s.Lng);
+                    if(!isNaN(slat)) {
+                        L.circleMarker([slat, slng], {radius: 6, color: 'orange', fillOpacity: 1}).addTo(map)
+                         .bindTooltip(s.STATION || s.Station);
+                    }
+                });
             }
         });
     }
